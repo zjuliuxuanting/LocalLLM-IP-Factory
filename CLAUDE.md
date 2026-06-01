@@ -7,7 +7,7 @@
 ```bash
 # 安装依赖
 pip install crawl4ai
-http_proxy=http://127.0.0.1:7897 python3 -m playwright install chromium
+http_proxy=http://<PROXY_HOST>:7897 python3 -m playwright install chromium
 
 # 一条命令跑通三阶段
 bash scripts/pipeline_all.sh --target 300 --count 10
@@ -46,7 +46,7 @@ open http://localhost:8899/output/dashboard.html
 ## 数据流
 
 ```
-显卡妹(qwen35b @ <GPU_SERVER_IP>:8080)
+显卡妹(qwen35b @ <GPU_SERVER>:8080)
   │
   ├─ 阶段一: 生成种子 → seed_pool.json
   │

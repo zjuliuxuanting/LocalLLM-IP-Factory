@@ -12,7 +12,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 os.chdir(str(SCRIPT_DIR))
 
-PROXY = "http://127.0.0.1:7897"
+PROXY = "http://<PROXY_HOST>:7897"
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 SHARED = SCRIPT_DIR / "data" / "source_cache" / "shared"
 SHARED.mkdir(parents=True, exist_ok=True)

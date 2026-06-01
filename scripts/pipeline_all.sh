@@ -39,11 +39,11 @@ echo ""
 if [ ! -f config/.env ]; then
     echo "📝 创建 .env..."
     cat > config/.env << 'ENVEOF'
-GATEWAY_URL=http://<GPU_SERVER_IP>:8080
+GATEWAY_URL=http://<GPU_SERVER>:8080
 XIANKA_MODEL=qwen35b
 DOUHUA_MODEL=qwen35b
 GATEWAY_AUTH=
-PROXY=http://127.0.0.1:7897
+PROXY=http://<PROXY_HOST>:7897
 ENVEOF
     echo "  已创建 config/.env"
 fi

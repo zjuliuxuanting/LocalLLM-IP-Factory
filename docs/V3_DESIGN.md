@@ -94,7 +94,7 @@ seed_pool.json → 信源缓存 shared/       S1 读缓存
 
 **过程**：
 1. 遍历所有系列，检查 `seed_pool.json` 中该系列 pending 种子数
-2. pending < 目标的系列 → 调显卡妹（qwen35b @ <GPU_SERVER_IP>:8080）按系列约束生成候选
+2. pending < 目标的系列 → 调显卡妹（qwen35b @ <GPU_SERVER>:8080）按系列约束生成候选
 3. `seed_gate.py` 5维质检：goal可执行性、kw质量、标题去重、标题吸引力、engine合法性
 4. engine 必须来自 `config/settings.py` 的 `ENGINE_MAP`
 5. 通过 → 写入 `seed_pool.json`，status=pending
@@ -282,7 +282,7 @@ L3 双重降级: 最简2个核心词OR + web引擎
 
 ### P0 — 项目结构（必须先做）
 
-- [ ] **新建 V3 项目文件夹**：`/Applications/test/创业/显卡妹计划/喵言汪语_v3/`，干净的 V3.0 代码库
+- [ ] **新建 V3 项目文件夹**：`<PROJECT_ROOT>/`，干净的 V3.0 代码库
 - [ ] **权限基础设施**：`unlock.sh` / `lock.sh` 脚本，`chmod 444` 锁定 src/ config/，跑 skill 前上锁
 - [ ] **三个 Skill 文件**：`/seed-generate`（阶段一）、`/source-dispatch`（阶段二）、`/push-to-nas`（同步推送）
 - [ ] **拆分 seed_factory.py**：种子生成和卡片派发分离为两个独立模块

@@ -17,11 +17,11 @@ echo ""
 # 2. 写 .env（如果不存在）
 if [ ! -f config/.env ]; then
     cat > config/.env << 'EOF'
-GATEWAY_URL=http://<GPU_SERVER_IP>:8080
+GATEWAY_URL=http://<GPU_SERVER>:8080
 XIANKA_MODEL=qwen35b
 DOUHUA_MODEL=qwen35b
 GATEWAY_AUTH=
-PROXY=http://127.0.0.1:7890
+PROXY=http://<PROXY_HOST>:7890
 EOF
     echo "✅ .env 已创建"
 fi
