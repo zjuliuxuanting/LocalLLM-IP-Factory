@@ -1,0 +1,25 @@
+# 从实验室到客厅：动物认知科学家眼中的宠物按键真相
+
+> Source: https://www.universityofcalifornia.edu/news/can-our-pets-really-say-i-love-you-science-finding-out
+**Can our pets really say 'I love you'? Science is finding out** (UC San Diego, 2026)
+
+Federico Rossano教授（UC圣地亚哥分校认知科学副教授）领导的Dog Communication Project是迄今最大规模的动物沟通公民科学研究。Rossano最初对宠物按钮持怀疑态度，曾向同事发送4篇论文说明"为什么我们不应该做这个研究"——因为之前的灵长类手语研究已被 largely debunked且涉及动物福利争议。
+**关键转变：** Rossano被Bunny这只 sheepadoodle使用按钮的方式所吸引，以及500+人愿意参与研究的承诺，最终决定开展社区研究。
+
+> Source: https://today.ucsd.edu/story/from-dog-soundboards-to-smarter-ai-what-animal-communication-reveals
+**From Dog Soundboards to Smarter AI: What Animal Communication Reveals** (UCSD, 2026)
+
+Rossano的研究不声称狗能"说话"，但已发表的研究表明：按钮训练的狗并非简单复制主人——它们正在学习共享的沟通系统，将特定词汇作为具有恒定意义的线索，对某些狗来说，将词汇串在一起形成反复出现的两词配对，看起来是有目的的而非偶然的。
+**方法论创新：** "科学可以在实验室之外进行"——在真实家庭环境中收集数据可以捕捉到实验室测试会遗漏的行为。现代问题以混乱的形式出现，但现在我们证明了科学也可以在实验室外完成。
+
+> Source: https://www.universityofcalifornia.edu/news/dogs-understand-words-soundboard-buttons-study-reveals
+**Dogs understand words from soundboard buttons, study reveals** (UC San Diego PLOS ONE, 2024)
+
+这是来自世界最大纵向宠物按钮研究项目的首篇实证论文。研究发现：按钮训练的狗确实能理解特定词汇，产生情境适当的反应。无论词汇是由主人说出还是通过按下按钮触发，无论按钮是由主人还是陌生人按下，狗都能对"play"和"outside"等词汇做出适当回应。
+**结论：** "我们的发现很重要，因为它们表明词汇对狗有意义，它们响应的是词汇本身，而不是相关的线索。"
+
+**关键发现：**
+- 宠物按钮研究已从轶事报道转向实证科学
+- 部分狗能创建2词组合，频率高于随机预期
+- 狗理解词汇本身而非依赖主人身体语言暗示
+- 公民科学研究方法可捕捉实验室无法观察到的自然行为

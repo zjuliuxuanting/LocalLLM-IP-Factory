@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# 环境
+.env
+.venv/
+venv/
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+
+# 运行时
+.daemon.pid
+output/logs/
+output/cards/
+output/drafts/
+output/reports/
+output/metrics/
+
+# 缓存数据（每次运行自动生成）
+data/source_cache/shared/auto_*.txt
+data/series_proposals/*.json

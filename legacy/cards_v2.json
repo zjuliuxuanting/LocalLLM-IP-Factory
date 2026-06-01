@@ -1,0 +1,204 @@
+[
+  {
+    "id": "card_chaser_word_learning",
+    "seed_title": "Chaser学习词汇：从物体到语法",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_chaser_border_collie_word_learning_syntax",
+      "pubmed_chaser_border_collie_word_learning_syntax"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_rico_vocabulary_recall",
+    "seed_title": "Rico边境牧羊犬：词汇召回的极限",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_rico_border_collie_vocabulary_1000_toys_recall",
+      "pubmed_rico_border_collie_vocabulary_1000_toys_recall_pubmed"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_victoria_wills_pet_buttons",
+    "seed_title": "Victoria Wills和VetTalk：宠物按钮的起源故事",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_victoria_wills_pet_buttons_origin"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_dog_chewing_separation_anxiety",
+    "seed_title": "为什么狗喜欢咬东西？磨牙本能与分离焦虑背后的心理补偿机制",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "pubmed_dog_chewing_behavior_separation_anxiety"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_dog_anal_gland_pheromones",
+    "seed_title": "为什么狗见面要闻屁股？肛门腺信息素的社交图谱解码",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_dog_anal_gland_pheromones_social_communication"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_cat_enclosure_preference",
+    "seed_title": "为什么猫总爱钻箱子？狭小空间带来的压力缓解效应",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "pubmed_cat_enclosure_preference_stress_reduction"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_cat_hunting_gift_behavior",
+    "seed_title": "为什么猫爱把猎物叼给主人？捕猎技能未成熟还是情感馈赠？",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_cat_hunting_gift_behavior_social_bonding"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_dog_cat_auditory_cortex",
+    "seed_title": "为什么猫狗能听懂语气？语调处理中的听觉皮层可塑性研究",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "pubmed_dog_cat_auditory_cortex_tone_prosody"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_cat_hunting_gift_evolutionary_psychology",
+    "seed_title": "为什么猫要把死老鼠当礼物？进化心理学中的生存教学",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "pubmed_cat_hunting_behavior_gift_giving_evolutionary_psychology"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_cat_water_aversion_thermoregulation",
+    "seed_title": "为什么猫讨厌水？皮毛绝缘失效与体温流失的热力学危机",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "pubmed_cat_water_aversion_thermoregulation_coat_insulation"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_cat_water_aversion_evolutionary_history",
+    "seed_title": "为什么猫讨厌水？进化史上的半水栖缺失与毛发物理特性",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "pubmed_cat_aversion_water_evolutionary_history"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_crow_tool_use_cognition",
+    "seed_title": "乌鸦工具使用：从简单到复杂的技术迭代",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_crow_tool_use_cognition_technology_evolution"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_crow_tool_generational_learning",
+    "seed_title": "乌鸦工具使用的代际学习",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_crow_tool_use_generational_learning"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_crow_tool_causal_logic",
+    "seed_title": "乌鸦工具使用的因果逻辑推理",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_crow_tool_use_causal_logic_reasoning"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_crow_tool_technology_iteration",
+    "seed_title": "乌鸦工具使用的技术迭代",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_crow_tool_use_technology_iteration"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_crow_tool_hook_creation",
+    "seed_title": "乌鸦工具使用：从简单到复杂的技术迭代",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_crow_tool_making_hook_creation_problem_solving"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_crow_tool_innovation",
+    "seed_title": "乌鸦工具使用：从简单到复杂的技术迭代历史",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_crow_tool_innovation_behavioral_evolution"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_crow_tool_material_selection",
+    "seed_title": "乌鸦工具制作的材质选择",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_crow_tool_material_selection_environmental_adaptation"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_crow_tool_iteration_composite",
+    "seed_title": "乌鸦工具迭代：从钩状树枝到复合工具的认知飞跃",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_crow_tool_iteration_hook_to_composite"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "card_crow_tool_making_cognition",
+    "seed_title": "乌鸦的工具使用：从简单到复杂的技术迭代",
+    "series": "B",
+    "status": "ready",
+    "sources": [
+      "web_crow_tool_making_cognition"
+    ],
+    "created_at": "2026-06-01T00:00:00Z"
+  }
+]

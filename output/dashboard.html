@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>喵言汪语 V3</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,system-ui,sans-serif;padding:16px}
+h1{font-size:18px}h1 span{color:#666;font-size:12px;font-weight:normal}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:#1a1a2e;border-radius:10px;padding:14px}
+.card h2{font-size:14px;margin-bottom:8px}
+.badge{font-size:10px;padding:2px 6px;border-radius:4px;margin-left:4px}
+.stat-row{display:flex;gap:8px;margin-bottom:8px}
+.stat{flex:1;text-align:center;padding:8px;background:#16213e;border-radius:6px}
+.stat .num{font-size:22px;font-weight:bold}
+.stat .lbl{font-size:10px;color:#888;margin-top:1px}
+.bar-line{display:flex;align-items:center;gap:4px;margin:2px 0;font-size:11px}
+.bar-line .tag{min-width:16px;font-weight:bold}
+.bar-line .bar{flex:1;height:10px;background:#1a1a2e;border-radius:5px;overflow:hidden}
+.bar-line .bar div{height:100%;border-radius:5px}
+.bar-line .val{min-width:80px;text-align:right;color:#888;font-size:10px}
+.status{text-align:center;font-size:10px;color:#555;margin-top:8px}
+.log-box{background:#0a0a14;border-radius:6px;padding:8px;font-family:monospace;font-size:11px;line-height:1.5;max-height:180px;overflow-y:auto;margin-top:8px;color:#8f8}
+.log-box .warn{color:#ffa}
+.log-box .err{color:#f88}
+.log-box .info{color:#8af}
+.daemon-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.daemon-running{background:#50B86C;box-shadow:0 0 6px #50B86C}
+.daemon-stopped{background:#E85D75;box-shadow:0 0 6px #E85D75}
+</style>
+</head>
+<body>
+<h1>🐱 喵言汪语 V3 <span id="ts"></span></h1>
+<div class="grid">
+  <div class="card">
+    <h2>🌱 阶段一：种子池</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="s1-total" style="color:#4A90D9">-</div><div class="lbl">总种子</div></div>
+      <div class="stat"><div class="num" id="s1-pending" style="color:#F39C12">-</div><div class="lbl">待派发</div></div>
+      <div class="stat"><div class="num" id="s1-dispatched" style="color:#50B86C">-</div><div class="lbl">已派发</div></div>
+    </div>
+    <div id="seed-bars"></div>
+  </div>
+  <div class="card">
+    <h2>📡 阶段二：信源+派发</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="s2-registry" style="color:#50B86C">-</div><div class="lbl">注册信源</div></div>
+      <div class="stat"><div class="num" id="s2-cache" style="color:#50B86C">-</div><div class="lbl">缓存文件</div></div>
+      <div class="stat"><div class="num" id="s2-ready" style="color:#F39C12">-</div><div class="lbl">ready</div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="s2-nosrc" style="color:#E85D75">-</div><div class="lbl">无信源</div></div>
+      <div class="stat"><div class="num" id="s2-failed" style="color:#E85D75">-</div><div class="lbl">信源fail</div></div>
+      <div class="stat"><div class="num" id="s2-sourcefail" style="color:#E85D75">-</div><div class="lbl">source_fail</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>⚙️ 阶段三：生产 <span id="daemon-indicator"><span class="daemon-dot daemon-stopped"></span><span id="daemon-status">检查中...</span></span></h2>
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="s3-total" style="color:#4A90D9">-</div><div class="lbl">总卡片</div></div>
+      <div class="stat"><div class="num" id="s3-done" style="color:#50B86C">-</div><div class="lbl">已完成</div></div>
+      <div class="stat"><div class="num" id="s3-failed" style="color:#E85D75">-</div><div class="lbl">失败</div></div>
+    </div>
+    <div id="card-progress" style="margin-top:6px;font-size:11px;color:#888"></div>
+    <div id="card-bars"></div>
+  </div>
+</div>
+<div class="grid">
+  <div class="card" style="grid-column:1/-1">
+    <h2>📋 实时日志 <span id="log-count" style="font-size:10px;color:#666"></span></h2>
+    <div class="log-box" id="log-box"><span style="color:#555">等待日志...</span></div>
+  </div>
+</div>
+<div class="status" id="status">⏳</div>
+<script>
+const C={B:'#4A90D9',R:'#E85D75',M:'#50B86C',S:'#9B59B6',Q:'#F39C12',F:'#E67E22',P:'#1ABC9C',D:'#3498DB',T:'#E74C3C',U:'#2ECC71',V:'#95A5A6',W:'#D35400'};
+async function L(p){try{let r=await fetch('../'+p,{cache:'no-store'});return r.ok?r.json():null}catch(e){return null}}
+async function T(p){try{let r=await fetch('../'+p,{cache:'no-store'});return r.ok?r.text():''}catch(e){return ''}}
+function B(d,k){let h='';for(let[s,o]of Object.entries(d).sort()){let p=Math.round((o[k]||0)/Math.max(o.total||1,1)*100);h+=`<div class="bar-line"><span class="tag" style="color:${C[s]||'#999'}">${s}</span><div class="bar"><div style="width:${p}%;background:${C[s]||'#999'}"></div></div><span class="val">${o[k]||0}/${o.total||0}</span></div>`}return h}
+let _lastLogLen=0;
+async function R(){
+  let seed=await L('data/seed_pool.json'),cards=await L('data/queue/cards.json'),reg=await L('data/source_registry/index.json');
+  // S1
+  let ss={},ts=0,tp=0,td=0;
+  if(seed)for(let[k,v]of Object.entries(seed)){if(!v||typeof v!=='object')continue;let p=0,d=0;(v.seeds||[]).forEach(s=>{if(s.status==='pending')p++;else if(s.status==='dispatched')d++});if(v.seeds?.length)ss[k]={total:v.seeds.length,pending:p,dispatched:d};ts+=v.seeds?.length||0;tp+=p;td+=d}
+  document.getElementById('s1-total').textContent=ts;document.getElementById('s1-pending').textContent=tp;document.getElementById('s1-dispatched').textContent=td;document.getElementById('seed-bars').innerHTML=B(ss,'dispatched');
+  // S2
+  let rc=reg?Object.keys(reg).length:0,sf=new Set(),ready=0,nosrc=0,ff=0,sfail=0;
+  (cards?.cards||[]).forEach(c=>{let s=c.status||'';if(s==='ready')ready++;else if(s.startsWith('pending_no'))nosrc++;else if(s==='failed')ff++;else if(s==='source_failed')sfail++;(c.source_files||[]).forEach(f=>sf.add(f))});
+  document.getElementById('s2-registry').textContent=rc;document.getElementById('s2-cache').textContent=sf.size;document.getElementById('s2-ready').textContent=ready;document.getElementById('s2-nosrc').textContent=nosrc;document.getElementById('s2-failed').textContent=ff;document.getElementById('s2-sourcefail').textContent=sfail;
+  // S3
+  let cs={},tc=0,dn=0,fl=0;(cards?.cards||[]).forEach(c=>{let s=c.section||'?';if(!cs[s])cs[s]={total:0,done:0};cs[s].total++;tc++;if(c.status==='done'){cs[s].done++;dn++}else if(c.status==='failed')fl++});
+  document.getElementById('s3-total').textContent=tc;document.getElementById('s3-done').textContent=dn;document.getElementById('s3-failed').textContent=fl;
+  let pct=tc?(dn/tc*100).toFixed(0):0;document.getElementById('card-progress').textContent=`完成率: ${pct}% (${dn}/${tc})`;
+  document.getElementById('card-bars').innerHTML=B(cs,'done');
+  // daemon 状态
+  let pidText=await T('.daemon.pid');let pid=pidText.trim();
+  let di=document.getElementById('daemon-indicator'),ds=document.getElementById('daemon-status');
+  if(pid){let alive=await T('.daemon.pid').then(()=>true).catch(()=>false);di.innerHTML=`<span class="daemon-dot daemon-running"></span><span id="daemon-status">运行中 PID=${pid}</span>`}else{di.innerHTML=`<span class="daemon-dot daemon-stopped"></span><span id="daemon-status">未运行</span>`}
+  // 日志
+  let log=await T('output/logs/daemon.log');
+  if(log&&log.length>_lastLogLen){
+    _lastLogLen=log.length;
+    let lines=log.split('\n').filter(l=>l.trim()).slice(-30);
+    let lb=document.getElementById('log-box');lb.innerHTML=lines.map(l=>{
+      let cls='';if(l.includes('ERROR')||l.includes('失败'))cls='err';else if(l.includes('WARN'))cls='warn';else if(l.includes('完成')||l.includes('✓'))cls='info';
+      return `<div class="${cls}">${l.replace(/</g,'&lt;')}</div>`
+    }).join('');lb.scrollTop=lb.scrollHeight;
+    document.getElementById('log-count').textContent=`${lines.length} 行`;
+  }
+  document.getElementById('ts').textContent=new Date().toLocaleString('zh-CN');document.getElementById('status').textContent='🔄 3s';
+}R();setInterval(R,3000);
+</script>
+</body>
+</html>
