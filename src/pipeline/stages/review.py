@@ -4,7 +4,7 @@
 自审结果用于指导 S5 修订，即使判 fail 也继续推进——由 S5 来修改。
 """
 from src.pipeline.card_state import CardContext
-from src.models.gateway import call_douhua
+from src.models.gateway import call_xianka, clean_response
 from src.models.prompts.review import build_review_prompt
 from src.quality.gate import gate
 from src.utils.logging import get_logger
@@ -14,7 +14,7 @@ logger = get_logger("review")
 
 async def execute(ctx: CardContext) -> CardContext:
     prompt = build_review_prompt(ctx.card, ctx.draft, ctx.source_text)
-    raw = call_douhua(prompt, max_tokens=2048, temperature=0.3, structured=True)
+    raw = call_xianka(prompt, max_tokens=2048, temperature=0.3, structured=True)
 
     if raw is None:
         # 自审调用失败不阻断，用空 review 继续

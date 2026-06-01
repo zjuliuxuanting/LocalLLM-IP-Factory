@@ -17,6 +17,7 @@ async def execute(ctx: CardContext, context: str = "") -> CardContext:
     prompt = build_draft_prompt(
         card=ctx.card,
         outline=outline,
+        source_text=ctx.source_text,
         retry_num=ctx.draft_retries,
         last_text=ctx.draft,
         context=context,

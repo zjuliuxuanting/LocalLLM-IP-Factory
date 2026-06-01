@@ -1,3 +1,33 @@
 {
-  "cards": []
+  "cards": [
+    {
+      "id": "B1-5-1",
+      "section": "B",
+      "topic": "B 沟通简史/语言理解",
+      "subsection": "猫真的听懂“名字”吗？解析猫科动物的听觉识别机制",
+      "status": "done",
+      "retries": 0,
+      "goal": "介绍基于动物认知行为学的实验研究，分析家猫如何通过声音频率和语调变化来区分主人呼唤与其日常指令，揭示非人类物种的社会性听觉线索处理过程",
+      "style": "科普叙事，有温度有深度，不学术腔",
+      "search": [
+        {
+          "engine": "crawl4ai_llm",
+          "query": "feline auditory discrimination owner name recognition study"
+        }
+      ],
+      "forbidden": [
+        "在本文中",
+        "值得注意的是",
+        "综上所述"
+      ],
+      "min_chars": 350,
+      "max_chars": 550,
+      "node_type": "card",
+      "source_files": [
+        "/Applications/test/创业/显卡妹计划/喵言汪语_v3/data/source_cache/shared/auto_Your_cat_can_recognize_your_voice._Yes__really..txt",
+        "/Applications/test/创业/显卡妹计划/喵言汪语_v3/data/source_cache/shared/auto_Vocal_recognition_of_owners_by_domestic_cats__Feli.txt",
+        "/Applications/test/创业/显卡妹计划/喵言汪语_v3/data/source_cache/shared/auto_Cats_Recognize_Their_Name___Science-Backed_Truth__.txt"
+      ]
+    }
+  ]
 }

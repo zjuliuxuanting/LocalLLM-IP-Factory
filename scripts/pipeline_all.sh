@@ -1,11 +1,14 @@
 #!/bin/bash
 # 喵言汪语 V3 · 一体化全流程
 # 本地运行，不需要 NAS。
-# 用法: bash scripts/pipeline_all.sh [--target 300] [--count 10] [--daemon]
-#   --target: 种子池 pending 目标数（默认 300）
-#   --count:   本次派发卡片数（默认 10）
-#   --daemon:  阶段三持续模式，处理完本次派发后继续守候新卡片
-set -e
+# 用法:
+#   单次运行: bash scripts/pipeline_all.sh --target 300 --count 10
+#   循环运行: bash scripts/pipeline_all.sh --target 300 --count 5 --repeat 3
+#   定时运行: bash scripts/pipeline_all.sh --target 300 --count 5 --duration 3600
+# 用法:
+#   单次运行: bash scripts/pipeline_all.sh --target 300 --count 10
+#   循环运行: bash scripts/pipeline_all.sh --target 300 --count 5 --repeat 3
+#   定时运行: bash scripts/pipeline_all.sh --target 300 --count 5 --duration 3600
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR"
@@ -13,27 +16,26 @@ cd "$SCRIPT_DIR"
 TARGET=300
 COUNT=10
 DAEMON=false
+REPEAT=0
+DURATION=0
+INTERVAL=10
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --target) TARGET="$2"; shift 2 ;;
-        --count)  COUNT="$2";  shift 2 ;;
-        --daemon) DAEMON=true; shift ;;
-        *) echo "用法: $0 [--target 300] [--count 10] [--daemon]"; exit 1 ;;
+        --target)   TARGET="$2";   shift 2 ;;
+        --count)    COUNT="$2";    shift 2 ;;
+        --repeat)   REPEAT="$2";   shift 2 ;;
+        --duration) DURATION="$2"; shift 2 ;;
+        --interval) INTERVAL="$2"; shift 2 ;;
+        --daemon)   DAEMON=true;   shift ;;
+        *) echo "用法: $0 [--target 300] [--count 10] [--repeat N] [--duration SEC] [--interval SEC] [--daemon]"; exit 1 ;;
     esac
 done
 
-# ── 环境检查 ──
 PYTHON=/opt/homebrew/bin/python3.11
 if [ ! -f "$PYTHON" ]; then
     PYTHON=python3
 fi
-
-echo "🐱 喵言汪语 V3 一体化全流程"
-echo "========================"
-echo "Python: $($PYTHON --version 2>&1)"
-echo "目标: target=$TARGET, count=$COUNT, daemon=$DAEMON"
-echo ""
 
 # ── .env ──
 if [ ! -f config/.env ]; then
@@ -48,61 +50,120 @@ ENVEOF
     echo "  已创建 config/.env"
 fi
 
-# ── 解锁 ──
 bash scripts/unlock.sh 2>/dev/null || true
 
-# ═══════════════════════════════════════
-# 阶段一+二：种子生成 + 信源缓存 + 派发
-# ═══════════════════════════════════════
-echo ""
-echo "📡 阶段一+二：种子生成 + 信源派发"
-echo "-------------------------------------"
-$PYTHON scripts/generate_and_dispatch.py --target "$TARGET" --count "$COUNT"
+# ── 加载 .env ──
+if [ -f config/.env ]; then
+    set -a; source config/.env; set +a
+fi
 
-# ═══════════════════════════════════════
-# 阶段三：卡片生产（本地 daemon）
-# ═══════════════════════════════════════
-echo ""
-echo "⚙️  阶段三：卡片生产"
-echo "-------------------------------------"
+# ── dashboard ──
+if ! lsof -i :8899 >/dev/null 2>&1; then
+    $PYTHON -m http.server 8899 > /dev/null 2>&1 &
+fi
 
-# 检查队列
-CARDS_READY=$($PYTHON -c "
+# 循环或单次执行
+# ── 注意：set -e 已移除，因为 generate_and_dispatch.py 退出时 asyncio 清理
+#     会触发非零返回码，导致 bash 提前退出。改用手动错误检查。──
+# ═══════════════════════════════════════
+
+CYCLE=0
+START_TS=$(date +%s)
+
+while true; do
+    CYCLE=$((CYCLE + 1))
+
+    echo ""
+    echo "=============================================="
+    echo "🐱 喵言汪语 V3 · 周期 $CYCLE"
+    echo "=============================================="
+
+    # ═════ 阶段一+二 ═════
+    echo ""
+    echo "📡 阶段一+二：种子生成 + 信源派发"
+    echo "-------------------------------------"
+    $PYTHON scripts/generate_and_dispatch.py --target "$TARGET" --count "$COUNT"
+
+    # ═════ 阶段三 ═════
+    echo ""
+    echo "⚙️  阶段三：卡片生产"
+    echo "-------------------------------------"
+    CARDS_READY=$($PYTHON -c "
 import json
 q = json.loads(open('data/queue/cards.json').read())
 ready = sum(1 for c in q.get('cards',[]) if c['status']=='ready')
 done = sum(1 for c in q.get('cards',[]) if c['status']=='done')
 print(f'{ready} {done}')
 ")
-READY=$(echo "$CARDS_READY" | cut -d' ' -f1)
-DONE=$(echo "$CARDS_READY" | cut -d' ' -f2)
+    READY=$(echo "$CARDS_READY" | cut -d' ' -f1)
+    DONE=$(echo "$CARDS_READY" | cut -d' ' -f2)
 
-if [ "$READY" -eq 0 ]; then
-    echo "📭 无待生产卡片，跳过阶段三"
-else
-    echo "📊 队列: $READY ready, $DONE done"
-
-    # 启动 dashboard（从项目根目录 serve，dashboard.html 在 output/ 下）
-    if ! lsof -i :8899 >/dev/null 2>&1; then
-        $PYTHON -m http.server 8899 > /dev/null 2>&1 &
-        echo "  📊 dashboard: http://localhost:8899/output/dashboard.html"
-    fi
-
-    if [ "$DAEMON" = true ]; then
-        echo "  🏭 启动持续生产模式 (daemon)..."
-        $PYTHON -m src.main pipeline start --daemon &
-        DAEMON_PID=$!
-        echo "  PID: $DAEMON_PID"
-        echo "  提示: 生产在后台持续运行"
-        echo "  停止: kill $DAEMON_PID 或 bash scripts/daemon.sh stop"
+    if [ "$READY" -eq 0 ]; then
+        echo "📭 无待生产卡片，跳过阶段三"
     else
-        echo "  🏭 启动生产流水线（处理 $READY 张后退出）..."
-        $PYTHON -m src.main pipeline start --max-cards "$READY"
+        echo "📊 队列: $READY ready, $DONE done"
+        echo ""
+        echo "▶ 阶段三开始..."
+        echo "  🏭 生产卡片 $READY 张，实时进度:"
+        # 在后台 tail pipeline.jsonl，提取 msg 字段显示
+        LOGFILE="output/logs/pipeline.jsonl"
+        : > "$LOGFILE"
+        (tail -f "$LOGFILE" 2>/dev/null | while read line; do
+            msg=$(echo "$line" | /opt/homebrew/bin/python3.11 -c "import sys,json; print(json.loads(sys.stdin.read()).get('msg',''))" 2>/dev/null || echo "$line")
+            echo "    $msg"
+        done) &
+        TAIL_PID=$!
+        if [ "$DAEMON" = true ]; then
+            $PYTHON -m src.main pipeline start --daemon
+        else
+            $PYTHON -m src.main pipeline start --max-cards "$READY"
+        fi
+        kill $TAIL_PID 2>/dev/null
+        wait $TAIL_PID 2>/dev/null
         echo "  ✅ 阶段三完成"
     fi
-fi
 
-# ── 报告 ──
+    # ── 本轮报告 ──
+    echo ""
+    echo "📊 周期 $CYCLE 报告"
+    $PYTHON -c "
+import json
+q = json.loads(open('data/queue/cards.json').read())
+cards = q.get('cards',[])
+ready = sum(1 for c in cards if c['status']=='ready')
+done = sum(1 for c in cards if c['status']=='done')
+failed = sum(1 for c in cards if c['status']=='failed')
+print(f'  ✅ done: {done}  ⏳ ready: {ready}  ❌ failed: {failed}')
+" 2>/dev/null
+
+    # ── 判断是否继续循环 ──
+    if [ "$REPEAT" -gt 0 ] && [ "$CYCLE" -ge "$REPEAT" ]; then
+        echo ""
+        echo "🏁 达到循环次数上限 ($REPEAT)，退出"
+        break
+    fi
+
+    if [ "$DURATION" -gt 0 ]; then
+        NOW=$(date +%s)
+        ELAPSED=$((NOW - START_TS))
+        if [ "$ELAPSED" -ge "$DURATION" ]; then
+            echo ""
+            echo "🏁 达到运行时长上限 (${DURATION}s)，退出"
+            break
+        fi
+    fi
+
+    # ── 单次模式（无 --repeat 也无 --duration）→ 只跑一轮 ──
+    if [ "$REPEAT" -eq 0 ] && [ "$DURATION" -eq 0 ]; then
+        break
+    fi
+
+    echo ""
+    echo "⏳ 等待 ${INTERVAL}s 后下一轮..."
+    sleep "$INTERVAL"
+done
+
+# ── 最终报告 ──
 echo ""
 echo "========================"
 echo "📊 最终报告"
@@ -119,7 +180,6 @@ print(f'  ✅ done:          {done}')
 print(f'  ⏳ ready:         {ready}')
 print(f'  ❌ failed:        {failed}')
 print(f'  ⚠️  pending_source: {pending_src}')
-print(f'  📝 output/cards/:  {len(list(Path(\"output/cards\").glob(\"*.md\")))} 个文件')
 " 2>/dev/null || echo "  (报告生成失败)"
 
 # ── 锁定 ──
@@ -130,8 +190,4 @@ echo "✅ 全流程完成"
 echo ""
 echo "产出位置:"
 echo "  📄 卡片: output/cards/"
-echo "  📊 面板: http://localhost:8899/dashboard.html"
-echo ""
-if [ "$DAEMON" = false ]; then
-    echo "提示: 想持续生产可加 --daemon 参数"
-fi
+echo "  📊 面板: http://localhost:8899/output/dashboard.html"

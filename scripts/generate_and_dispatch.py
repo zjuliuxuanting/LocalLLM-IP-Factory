@@ -62,7 +62,7 @@ STOP_WORDS = frozenset({
     "more","than",
 })
 
-PRIORITY = ["B", "R", "M", "Q", "F", "P", "S", "T", "U", "V"]
+PRIORITY = ["A", "B", "C", "D", "E", "F", "G"]
 
 # 显卡妹 LLM 配置（供 Crawl4AI 的 LLM extraction strategy 使用）
 # 显卡妹 API = OpenAI 兼容: {XIANKA_GATEWAY}/v1/chat/completions
@@ -565,23 +565,9 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
 async def step2_dispatch(pool: dict, count: int):
     crawler = await get_crawler()
 
-    # 检查各系列的 ID 格式是否兼容
-    q = json.loads(CARDS_FILE.read_text()) if CARDS_FILE.exists() else {"cards": []}
-    existing_ids = {c["id"] for c in q["cards"]}
-    valid_series = set()
-    for sid in existing_ids:
-        parts = sid.split("-")
-        if len(parts) >= 2:
-            series_letter = re.match(r"([A-Z])", sid)
-            if series_letter:
-                valid_series.add(series_letter.group(1))
-
     all_pending = []
     for series in PRIORITY:
         if series not in pool or not isinstance(pool[series], dict):
-            continue
-        if series not in valid_series:
-            print(f"  ⏭️ {series}: 无兼容 ID 格式，跳过")
             continue
         seeds = pool[series].get("seeds", [])
         pending = [s for s in seeds if s.get("status") == "pending"]
@@ -659,5 +645,8 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    finally:
-        asyncio.run(close_crawler())
+    except KeyboardInterrupt:
+        print("\n⏹️ 用户中断")
+    # close_crawler 不在这里调：crawler 是在 step2_dispatch 的
+    # asyncio.run() 事件循环中创建的，在另一个事件循环里关它会
+    # 因跨循环资源绑定而永久挂起。进程退出时 OS 会自动清理。

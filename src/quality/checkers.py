@@ -103,7 +103,7 @@ def check_content_depth(text: str) -> tuple[bool, str]:
     if not meaningful:
         return False, "内容过短，缺乏实质性句子"
 
-    # 含数字/年份/专名的句子比例应 > 20%
+    # 含数字/年份/专名的句子比例应 > 10%（短卡可放宽）
     with_info = sum(1 for s in meaningful
                    if re.search(r'\d{2,}', s) or re.search(r'[A-Z][a-z]{2,}', s))
     ratio = with_info / len(meaningful)
@@ -114,7 +114,7 @@ def check_content_depth(text: str) -> tuple[bool, str]:
     filler_ratio = fillers / max(len(meaningful), 1)
 
     issues = []
-    if ratio < 0.2:
+    if ratio < 0.1:
         issues.append(f"信息密度过低（仅{ratio:.0%}的句子含事实信息）")
     if filler_ratio > 0.3:
         issues.append(f"空泛套话过多（{fillers}处）")

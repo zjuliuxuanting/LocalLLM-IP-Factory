@@ -1,1 +1,71 @@
-{}
+{
+  "src_crawl_nationalgeographic_com_09e6806d": {
+    "source_id": "src_crawl_nationalgeographic_com_09e6806d",
+    "source_type": "web_crawl_llm",
+    "title": "Your cat can recognize your voice. Yes, really.",
+    "url": "https://www.nationalgeographic.com/animals/article/your-cat-can-recognize-your-voice",
+    "retrieved_at": "2026-06-01T11:34:32.763949+00:00",
+    "cache_path": "/Applications/test/创业/显卡妹计划/喵言汪语_v3/data/source_cache/shared/auto_Your_cat_can_recognize_your_voice._Yes__really..txt",
+    "content_hash": "c563885e16cf",
+    "content_length": 787,
+    "keywords": [
+      "feline",
+      "auditory",
+      "discrimination",
+      "owner",
+      "name",
+      "recognition",
+      "study"
+    ],
+    "llm_relevance": 9,
+    "used_by": [
+      "B1-5-1"
+    ]
+  },
+  "src_crawl_link_springer_com_1ef1eda7": {
+    "source_id": "src_crawl_link_springer_com_1ef1eda7",
+    "source_type": "web_crawl_llm",
+    "title": "Vocal recognition of owners by domestic cats (Felis catus)",
+    "url": "https://link.springer.com/article/10.1007/s10071-013-0620-4",
+    "retrieved_at": "2026-06-01T11:34:32.763986+00:00",
+    "cache_path": "/Applications/test/创业/显卡妹计划/喵言汪语_v3/data/source_cache/shared/auto_Vocal_recognition_of_owners_by_domestic_cats__Feli.txt",
+    "content_hash": "457477eb5b0f",
+    "content_length": 638,
+    "keywords": [
+      "feline",
+      "auditory",
+      "discrimination",
+      "owner",
+      "name",
+      "recognition",
+      "study"
+    ],
+    "llm_relevance": 8,
+    "used_by": [
+      "B1-5-1"
+    ]
+  },
+  "src_crawl_roverpet_blog_fc4509c2": {
+    "source_id": "src_crawl_roverpet_blog_fc4509c2",
+    "source_type": "web_crawl_llm",
+    "title": "Cats Recognize Their Name? [Science-Backed Truth!] - roverpet.blog",
+    "url": "https://roverpet.blog/cats-recognize-name-science",
+    "retrieved_at": "2026-06-01T11:34:32.763994+00:00",
+    "cache_path": "/Applications/test/创业/显卡妹计划/喵言汪语_v3/data/source_cache/shared/auto_Cats_Recognize_Their_Name___Science-Backed_Truth__.txt",
+    "content_hash": "ffc73b18f353",
+    "content_length": 439,
+    "keywords": [
+      "feline",
+      "auditory",
+      "discrimination",
+      "owner",
+      "name",
+      "recognition",
+      "study"
+    ],
+    "llm_relevance": 6,
+    "used_by": [
+      "B1-5-1"
+    ]
+  }
+}

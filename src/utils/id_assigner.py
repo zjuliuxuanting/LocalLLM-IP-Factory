@@ -64,6 +64,12 @@ def parse_project_map() -> tuple:
                         'exact': True,
                     })
 
+    # 可扩展区域的起始编号不算"已使用"（如 B2-3-1 只是起始标记）
+    for series, series_slots in slots.items():
+        for sl in series_slots:
+            start_id = f"{series}{sl['ch']}-{sl['sec']}-{sl['start']}"
+            used_ids.discard(start_id)
+
     return slots, used_ids
 
 
@@ -74,42 +80,48 @@ class IdAssigner:
         self.slots, self.map_ids = parse_project_map()
         self.used = set(self.map_ids) | existing_ids
 
-    def assign(self, series: str) -> str:
-        """为指定系列分配一个新编号"""
-        if series in self.slots:
-            for sl in sorted(self.slots[series],
-                             key=lambda s: (s['ch'], s['sec'], s['start'])):
-                prefix = f"{series}{sl['ch']}-{sl['sec']}-"
-                used_in_slot = sorted(
-                    i for i in self.used if i.startswith(prefix)
-                )
-                if used_in_slot:
-                    next_num = max(int(i.rsplit('-', 1)[1]) for i in used_in_slot) + 1
-                else:
-                    next_num = sl['start']
-                cid = f"{prefix}{next_num}"
-                if cid not in self.used:
-                    self.used.add(cid)
-                    return cid
-
-        # 可扩展区域用完了，自动递增
-        existing = [i for i in self.used if i.startswith(series)]
-        if existing:
-            # 判断是三位还是两位编号
-            has_three = any(len(i.split('-')) == 3 for i in existing)
-            if has_three:
-                best = max(existing, key=lambda x: tuple(
-                    int(p) if p.isdigit() else 0 for p in x.split('-')[1:]
-                ))
-                parts = best.split('-')
-                series_code = parts[0][len(series):]
-                cid = f"{series}{series_code}-{int(parts[1])}-{int(parts[2]) + 1}"
+    def _assign_from_slots(self, series: str) -> Optional[str]:
+        """从 PROJECT_MAP 的可扩展区域分配编号"""
+        if series not in self.slots:
+            return None
+        for sl in sorted(self.slots[series],
+                         key=lambda s: (s['ch'], s['sec'], s['start'])):
+            prefix = f"{series}{sl['ch']}-{sl['sec']}-"
+            used_in_slot = sorted(
+                i for i in self.used if i.startswith(prefix)
+            )
+            if used_in_slot:
+                next_num = max(int(i.rsplit('-', 1)[1]) for i in used_in_slot) + 1
             else:
-                best = max(existing, key=lambda x: int(x.split('-')[1]))
-                parts = best.split('-')
-                cid = f"{series}{parts[0][len(series):]}-{int(parts[1]) + 1}"
+                next_num = sl['start']
+            cid = f"{prefix}{next_num}"
+            if cid not in self.used:
+                self.used.add(cid)
+                return cid
+        return None
+
+    def assign(self, series: str) -> str:
+        """为指定系列分配一个新编号（永远输出 3 段格式，如 B2-3-2）"""
+        # 优先从 PROJECT_MAP 可扩展区域分配
+        result = self._assign_from_slots(series)
+        if result:
+            return result
+
+        # 没有可扩展区域 → 找已有 3 段 ID 自动递增
+        existing = sorted(
+            i for i in self.used
+            if i.startswith(series) and len(i.split('-')) == 3
+        )
+        if existing:
+            best = max(existing, key=lambda x: tuple(
+                int(p) if p.isdigit() else 0 for p in x.split('-')[1:]
+            ))
+            parts = best.split('-')
+            series_code = parts[0][len(series):]
+            cid = f"{series}{series_code}-{int(parts[1])}-{int(parts[2]) + 1}"
         else:
-            cid = f"{series}1-1"
+            # 全新的系列，从 1-1-1 开始
+            cid = f"{series}1-1-1"
 
         self.used.add(cid)
         return cid
