@@ -2,50 +2,414 @@
   "A": {
     "topic": "A 背景知识",
     "style": "科普叙事，有温度有深度，不学术腔",
-    "forbidden": ["在本文中", "值得注意的是", "综上所述"],
+    "forbidden": [
+      "在本文中",
+      "值得注意的是",
+      "综上所述"
+    ],
     "avg_chars": 450,
-    "seeds": []
+    "seeds": [
+      {
+        "title": "猫为何爱把死老鼠当礼物？揭秘捕猎本能与社交表达的奇妙重叠",
+        "goal": "通过动物行为学视角，分析家猫保留狩猎天性并视为‘社交礼物’的科学机制",
+        "engine": "web",
+        "kw": "cat hunting instinct gift giving behavior",
+        "status": "pending"
+      },
+      {
+        "title": "猫咪呼噜声是快乐吗？探索自我疗愈与沟通的双重科学真相",
+        "goal": "介绍猫呼噜声的频率范围及其在骨骼修复、缓解压力及人际互动中的功能",
+        "engine": "web",
+        "kw": "cat purring frequency health benefits communication",
+        "status": "pending"
+      },
+      {
+        "title": "为什么狗会转圈再睡？追溯远古祖先留下的生存安全仪式",
+        "goal": "讲述犬类转圈睡眠行为的进化起源及其对安全感构建的心理意义",
+        "engine": "web",
+        "kw": "why dogs circle before sleeping evolutionary reason",
+        "status": "pending"
+      },
+      {
+        "title": "猫碰鼻子是打招呼？解读猫科动物独特的嗅觉社交礼仪",
+        "goal": "展示猫之间通过鼻尖触碰交换信息素的社交规则及对人亲昵行为的含义",
+        "engine": "web",
+        "kw": "cat nose booping social greeting pheromones",
+        "status": "pending"
+      },
+      {
+        "title": "狗为什么爱闻屁股？揭开动物界最被误解的‘握手’礼仪",
+        "goal": "科普肛门腺信息素在犬类社交识别中的核心作用及正常行为逻辑",
+        "engine": "web",
+        "kw": "why dogs sniff each other butts social identification",
+        "status": "pending"
+      },
+      {
+        "title": "猫踩奶动作萌点背后：回归幼崽期的安全感与依恋机制",
+        "goal": "分析猫踩奶行为的心理根源，说明其作为舒适感唤起和依恋表达的科学依据",
+        "engine": "web",
+        "kw": "cat kneading behavior origin comfort nursing",
+        "status": "pending"
+      }
+    ]
   },
   "B": {
     "topic": "B 市场调研",
     "style": "记者风格。有数据有人物有观点。",
-    "forbidden": ["在本文中", "值得注意的是", "综上所述"],
+    "forbidden": [
+      "在本文中",
+      "值得注意的是",
+      "综上所述"
+    ],
     "avg_chars": 400,
-    "seeds": []
+    "seeds": [
+      {
+        "title": "猫为何不回应指令？解析犬类服从性与猫的自主认知差异",
+        "goal": "对比犬类与社会性动物的合作演化机制及猫的独立生存策略，揭示不同物种在互动行为背后的神经生物学基础与进化逻辑。",
+        "engine": "pubmed",
+        "kw": "canine obedience vs feline independence cognitive evolution",
+        "status": "pending"
+      },
+      {
+        "title": "狗狗会撒谎吗？解读动物欺骗行为的进化心理学真相",
+        "goal": "分析灵长类及犬科动物的欺骗行为案例，探讨动物心智理论（ToM）在社交互动中的实际应用与认知局限。",
+        "engine": "pubmed",
+        "kw": "animal deception theory of mind domestic dogs primates",
+        "status": "pending"
+      },
+      {
+        "title": "猫语真的存在？拆解猫咪发声频率与人类听觉感知的错位",
+        "goal": "解析家猫叫声的频率特征及其在野外行为中的缺失，说明幼态持续（neoteny）如何塑造了成年猫的沟通方式。",
+        "engine": "pubmed",
+        "kw": "cat vocalization frequency human hearing perception neoteny",
+        "status": "pending"
+      },
+      {
+        "title": "当宠物生病时：动物如何通过疼痛表达传递求救信号？",
+        "goal": "介绍犬猫疼痛行为的隐蔽性特征及非语言沟通线索，分析主人识别这些细微行为变化对临床诊断的关键意义。",
+        "engine": "pubmed",
+        "kw": "pet pain communication behavioral cues dogs cats",
+        "status": "pending"
+      },
+      {
+        "title": "为什么你的猫爱踩奶？追溯幼体安抚行为的成体保留机制",
+        "goal": "讲述哺乳动物早期依恋行为如何通过神经回路固化为成年后的舒适行为，分析触觉刺激与催产素分泌的关联。",
+        "engine": "pubmed",
+        "kw": "kneading behavior kittenhood attachment oxytocin response",
+        "status": "pending"
+      },
+      {
+        "title": "狗能听懂多少词汇？揭秘犬类语言处理的大脑区域激活图",
+        "goal": "展示基于fMRI研究的犬类大脑听觉皮层反应数据，分析其对语义理解与语调感知的神经解剖学基础。",
+        "engine": "pubmed",
+        "kw": "dog vocabulary comprehension fMRI auditory cortex semantics",
+        "status": "pending"
+      },
+      {
+        "title": "跨物种依恋：从隔离实验看人宠情感联结的生物学根源",
+        "goal": "回顾经典动物依恋研究历史，说明催产素回路如何促进人类与伴侣动物之间形成类似亲子关系的深层情感纽带。",
+        "engine": "pubmed",
+        "kw": "human animal bond oxytocin attachment theory cross-species",
+        "status": "pending"
+      }
+    ]
   },
   "C": {
     "topic": "C 方法论",
     "style": "实操派。像老师傅带徒弟。",
-    "forbidden": ["在本文中", "值得注意的是", "综上所述"],
+    "forbidden": [
+      "在本文中",
+      "值得注意的是",
+      "综上所述"
+    ],
     "avg_chars": 350,
-    "seeds": []
+    "seeds": [
+      {
+        "title": "猫为什么总爱踩奶？深度解析成年猫咪保留幼态行为的心理机制与安抚技巧",
+        "goal": "详细分析成年猫咪踩奶行为背后的进化心理学成因，并展示如何通过环境丰容来满足其情感需求。",
+        "engine": "web",
+        "kw": "cat kneading behavior psychology explanation",
+        "status": "pending"
+      },
+      {
+        "title": "狗狗分离焦虑的急救指南：从脱敏训练到日常安抚，让爱宠学会独处",
+        "goal": "介绍基于行为主义原理的系统性脱敏训练法，并展示如何通过正向反馈逐步降低宠物分离焦虑。",
+        "engine": "web",
+        "kw": "dog separation anxiety desensitization training",
+        "status": "pending"
+      },
+      {
+        "title": "读懂猫咪尾巴语言：从炸毛到轻摇，揭秘猫科动物情绪表达的微秘密",
+        "goal": "具体解析不同频率和幅度的尾巴摆动所对应的情绪状态，并说明如何结合身体姿态进行综合判断。",
+        "engine": "web",
+        "kw": "cat tail language body interpretation",
+        "status": "pending"
+      },
+      {
+        "title": "为什么狗狗喜欢转圈再睡？探究犬类睡眠前的本能仪式与安全感构建",
+        "goal": "讲述犬科祖先遗留的筑巢行为逻辑，并展示如何通过观察这一行为来评估宠物的环境适应度。",
+        "engine": "web",
+        "kw": "dog spinning before sleep instinct origin",
+        "status": "pending"
+      },
+      {
+        "title": "打破“服从”迷思：用合作代替控制，重塑人与宠物之间的信任关系",
+        "goal": "分析传统强制训练法的局限性，并展示基于互惠合作的互动模式如何提升长期人宠羁绊。",
+        "engine": "web",
+        "kw": "positive reinforcement dog training methods",
+        "status": "pending"
+      },
+      {
+        "title": "猫咪理毛过度是生病还是压力？识别强迫性舔毛的早期信号与干预方案",
+        "goal": "介绍区分生理疾病与心理压力导致过度理毛的具体观察指标，并说明家庭环境的优化策略。",
+        "engine": "web",
+        "kw": "cat psychogenic alopecia identification signs",
+        "status": "pending"
+      },
+      {
+        "title": "宠物眼中的世界：解读视觉差异如何影响我们与动物的互动方式",
+        "goal": "科普犬猫与人类视觉系统的生理差异，并展示如何根据这些感知特点优化家庭互动场景。",
+        "engine": "web",
+        "kw": "dog cat vision color perception differences",
+        "status": "pending"
+      }
+    ]
   },
   "D": {
     "topic": "D 小说叙事",
     "style": "小说体，第一人称视角。感官描写为主。",
-    "forbidden": ["在本文中", "值得注意的是", "综上所述"],
+    "forbidden": [
+      "在本文中",
+      "值得注意的是",
+      "综上所述"
+    ],
     "avg_chars": 500,
-    "seeds": []
+    "seeds": [
+      {
+        "title": "当猫头突然转向虚空：是灵视还是神经放电？解析宠物神秘凝视背后的科学真相",
+        "goal": "通过第一人称悬疑叙事，介绍并分析动物行为学中关于宠物凝视无生命物体的现象，说明这可能是听觉或嗅觉捕捉到了人类无法感知的细微信号。",
+        "engine": "web",
+        "kw": "cat staring at nothing scientific explanation dog ghost belief behavioral analysis",
+        "status": "pending"
+      },
+      {
+        "title": "深夜踩脸是爱还是梦游？揭秘宠物睡眠周期与主人的情感连接机制",
+        "goal": "以温馨的第一人称日记体，讲述并展示动物睡眠行为学知识，解释为何猫狗会在熟睡中移动或踩踏主人，说明这是浅睡期肌肉放松或寻求安全感的表现。",
+        "engine": "web",
+        "kw": "why do cats walk on owners sleep cat behavior science dog dreaming movements",
+        "status": "pending"
+      },
+      {
+        "title": "为什么狗总是盯着你看？解读犬类眼神交流中的催产素循环与依恋关系",
+        "goal": "采用科普故事体裁，介绍并说明狼与人演化过程中形成的特殊视觉沟通机制，分析凝视如何触发双方大脑催产素分泌，展示宠物对人类情感理解的生物学基础。",
+        "engine": "web",
+        "kw": "dog eye contact oxytocin study science why dogs stare at owners evolution",
+        "status": "pending"
+      },
+      {
+        "title": "屁股贴地滑行：是耍赖还是皮肤过敏？解析雪橇式动作的健康警示信号",
+        "goal": "以幽默的第一人称吐槽视角，分析并介绍动物行为学中的'雪橇式'滑动现象，说明这通常意味着肛门腺堵塞或寄生虫感染，提示宠物正在通过肢体语言表达身体不适。",
+        "engine": "web",
+        "kw": "why does dog drag butt on floor science scooting behavior anal gland infection",
+        "status": "pending"
+      },
+      {
+        "title": "深夜跑酷是恶魔附体还是精力过剩？解析猫科动物晨昏活跃性的生物钟秘密",
+        "goal": "通过惊悚转温馨的叙事手法，介绍并展示猫科动物的捕猎本能与昼夜节律，说明为什么猫咪会在凌晨突然兴奋奔跑，分析环境刺激对宠物能量释放的影响。",
+        "engine": "web",
+        "kw": "why are cats hyperactive at night zoomies feline circadian rhythm behavioral science",
+        "status": "pending"
+      },
+      {
+        "title": "听到名字却装聋作哑：是叛逆还是听觉过滤？揭秘宠物选择性注意力的认知机制",
+        "goal": "以趣味对话形式，介绍并说明动物认知心理学中的'选择性听觉注意力'概念，分析为何宠物能忽略呼唤却能听见零食袋声音，展示其信息筛选的大脑处理逻辑。",
+        "engine": "web",
+        "kw": "why do cats ignore name sound sensitivity animal cognition selective attention science",
+        "status": "pending"
+      },
+      {
+        "title": "挖坑埋藏是本能还是强迫症？追溯犬类祖先的生存智慧与当代行为偏差",
+        "goal": "通过历史溯源的第一人称叙述，介绍并分析犬类挖掘行为的进化心理学背景，说明这是储存食物或调节体温的本能残留，展示如何通过环境丰富化缓解此类刻板行为。",
+        "engine": "web",
+        "kw": "why do dogs dig holes instinct vs obsession canine evolution behavioral enrichment science",
+        "status": "pending"
+      }
+    ]
   },
   "E": {
     "topic": "E 问答",
     "style": "亲切解答、像老朋友。不居高临下。",
-    "forbidden": ["在本文中", "值得注意的是", "综上所述"],
+    "forbidden": [
+      "在本文中",
+      "值得注意的是",
+      "综上所述"
+    ],
     "avg_chars": 300,
-    "seeds": []
+    "seeds": [
+      {
+        "title": "猫咪突然哈气是讨厌我了吗？解读猫科动物防御性攻击的真实信号",
+        "goal": "分析猫咪哈气行为的底层逻辑，区分恐惧与攻击的区别，帮助铲屎官识别猫咪的情绪边界。",
+        "engine": "web",
+        "kw": "cat hissing behavior analysis feline communication",
+        "status": "pending"
+      },
+      {
+        "title": "狗狗拆家是因为生气吗？破解犬类分离焦虑与无聊破坏的真相",
+        "goal": "讲述狗狗破坏行为背后的心理动机，区分恶作剧与焦虑症状，提供科学的应对策略。",
+        "engine": "web",
+        "kw": "dog separation anxiety destructive behavior",
+        "status": "pending"
+      },
+      {
+        "title": "猫薄荷真的有效吗？揭秘植物反应与宠物个体差异的科学依据",
+        "goal": "介绍猫薄荷作用机制的遗传学基础，解释为何部分动物无反应，提供替代方案。",
+        "engine": "web",
+        "kw": "catnip effect genetics feline response",
+        "status": "pending"
+      },
+      {
+        "title": "为什么狗总爱闻屁股？解析犬类社交礼仪与气味信息的重要性",
+        "goal": "展示狗狗嗅闻行为的生物学意义，说明气味腺体在识别身份中的作用，消除主人的尴尬。",
+        "engine": "web",
+        "kw": "dog sniffing behavior social signaling",
+        "status": "pending"
+      },
+      {
+        "title": "猫咪踩奶是幸福吗？追溯幼崽本能与成年后的情感表达关联",
+        "goal": "分析猫咪踩奶动作的起源与进化意义，探讨其在成年后作为安抚机制的功能。",
+        "engine": "web",
+        "kw": "cat kneading behavior instinct meaning",
+        "status": "pending"
+      },
+      {
+        "title": "狗狗摇尾巴一定是开心吗？解读尾部语言中的情绪细微差别",
+        "goal": "说明犬类尾巴摇摆方向与幅度的情绪含义，帮助主人准确判断宠物的真实心情。",
+        "engine": "web",
+        "kw": "dog tail wagging body language interpretation",
+        "status": "pending"
+      },
+      {
+        "title": "猫砂盆外排泄是报复吗？排查健康隐患与环境因素的排查指南",
+        "goal": "分析猫咪非典型排泄行为的常见原因，区分医疗问题与行为偏好，提供改善建议。",
+        "engine": "web",
+        "kw": "cat inappropriate elimination causes solutions",
+        "status": "pending"
+      }
+    ]
   },
   "F": {
     "topic": "F 趣味",
     "style": "幽默轻松、让人想分享。可以夸张不胡说。",
-    "forbidden": ["在本文中", "值得注意的是", "综上所述"],
+    "forbidden": [
+      "在本文中",
+      "值得注意的是",
+      "综上所述"
+    ],
     "avg_chars": 400,
-    "seeds": []
+    "seeds": [
+      {
+        "title": "狗子按下‘零食’键后眼神拉丝：它是不是在嘲笑我？",
+        "goal": "通过拆解狗狗按铃后的微表情与肢体语言，分析其意图识别机制，讲述宠物如何通过观察人类反应来优化沟通策略的趣味行为学实验。",
+        "engine": "web",
+        "kw": "dog button communication funny behavior meme",
+        "status": "pending"
+      },
+      {
+        "title": "猫按了‘开门’键却坐在门口发呆：它在思考什么哲学问题？",
+        "goal": "结合动物认知科学中关于延迟满足的研究，幽默解读猫咪按下按钮后的停滞行为，展示宠物在非功利性互动中的独特逻辑。",
+        "engine": "web",
+        "kw": "cat button delay funny meme animal cognition",
+        "status": "pending"
+      },
+      {
+        "title": "当二哈学会‘道歉’键：是真心悔过还是为了骗罐头？",
+        "goal": "通过对比分析犬类在犯错后的讨好行为与按下特定按钮的频率，揭示宠物如何利用人类的情感弱点进行‘操纵’的搞笑案例。",
+        "engine": "web",
+        "kw": "dog apology button funny owner interaction meme",
+        "status": "pending"
+      },
+      {
+        "title": "猫狗同框使用语音按钮：谁才是家里的真正话事人？",
+        "goal": "收集并分类猫狗在使用多语言沟通板时的高频词汇差异，讲述跨物种家庭中权力动态反转的荒诞日常与行为学观察。",
+        "engine": "web",
+        "kw": "cat dog button communication funny hierarchy meme",
+        "status": "pending"
+      },
+      {
+        "title": "我教猫说‘我爱你’，它却按了‘放逐’键：沟通失败实录",
+        "goal": "记录训练宠物使用情感词汇按钮过程中的翻车现场，分析动物对抽象概念的理解局限，展示人宠认知错位引发的喜剧冲突。",
+        "engine": "web",
+        "kw": "cat dog love button training fail funny meme",
+        "status": "pending"
+      },
+      {
+        "title": "按下‘睡觉’键后宠物真的睡了吗？揭秘它们的失眠秘密",
+        "goal": "结合睡眠行为学知识，通过观察宠物在非睡眠时间按下休息按钮的频率，讲述它们如何通过幽默方式表达无聊或焦虑的真实需求。",
+        "engine": "web",
+        "kw": "pet sleep button funny behavior anxiety meme",
+        "status": "pending"
+      },
+      {
+        "title": "如果狗狗会发朋友圈：从按钮记录还原它的一天高光时刻",
+        "goal": "模拟宠物视角，将一天内按下的各种需求按钮串联成叙事线索，讲述宠物眼中人类世界的荒谬逻辑与温馨互动的反转故事。",
+        "engine": "web",
+        "kw": "dog daily routine button funny story meme",
+        "status": "pending"
+      }
+    ]
   },
   "G": {
     "topic": "G 人物",
     "style": "人物特写风格。有细节有人情味。",
-    "forbidden": ["在本文中", "值得注意的是", "综上所述"],
+    "forbidden": [
+      "在本文中",
+      "值得注意的是",
+      "综上所述"
+    ],
     "avg_chars": 500,
-    "seeds": []
+    "seeds": [
+      {
+        "title": "为什么狗会对着空气吠叫？揭秘 canine 听觉盲区与感知恐惧",
+        "goal": "结合动物行为学研究，分析狗狗对着虚空吠叫的具体场景，解释其敏锐听力可能捕捉到的次声波或高频噪音，揭示背后的感知机制。",
+        "engine": "web",
+        "kw": "dog barking at nothing auditory sensitivity animal behavior science",
+        "status": "pending"
+      },
+      {
+        "title": "猫咪踩奶行为溯源：从幼崽本能到成年后的情感依赖表现",
+        "goal": "追溯猫科动物踩踏动作的起源，分析成猫保留该行为的心理动机，讲述其与安全感建立及母婴联结之间的深层行为学关联。",
+        "engine": "web",
+        "kw": "kitten kneading instinct adult cat psychology feline behavior origin",
+        "status": "pending"
+      },
+      {
+        "title": "为何猫总爱把玩具叼进厕所？探究 feline 狩猎本能与领地标记行为",
+        "goal": "从进化心理学角度分析猫咪将猎物或玩具带至隐蔽处的本能，解释这并非恶作剧，而是其狩猎策略与安全感的自然延伸表现。",
+        "engine": "web",
+        "kw": "cat carrying toys to toilet hunting instinct territorial behavior psychology",
+        "status": "pending"
+      },
+      {
+        "title": "宠物分离焦虑症：如何识别并科学干预狗狗的独处恐惧症？",
+        "goal": "介绍分离焦虑的典型临床症状，分析导致该行为的成因机制，提供基于正向强化的行为矫正方案，帮助主人重建宠物的安全感。",
+        "engine": "web",
+        "kw": "dog separation anxiety symptoms causes behavioral correction training methods",
+        "status": "pending"
+      },
+      {
+        "title": "猫咪翻肚皮是信任吗？解析猫科动物展示脆弱部位的真实意图",
+        "goal": "区分猫咪展示腹部时的不同情境，分析其代表的完全信任、求关注或防御警告等多重含义，指导主人正确回应宠物的互动信号。",
+        "engine": "web",
+        "kw": "cat showing belly meaning trust vs warning feline body language cues",
+        "status": "pending"
+      },
+      {
+        "title": "为什么狗会吃草？解析犬科动物自我疗愈与肠胃消化的自然行为",
+        "goal": "探讨狗狗食用植物行为的进化背景，分析其可能存在的助消化或微量元素补充功能，说明何时属于正常生理需求而非病态异食癖。",
+        "engine": "web",
+        "kw": "dog eating grass reasons digestive health natural instinct veterinary advice",
+        "status": "pending"
+      }
+    ]
   }
 }

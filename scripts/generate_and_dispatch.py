@@ -126,14 +126,27 @@ def step1_generate_seeds(pool: dict, target: int):
         )
         raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
         if not raw:
-            print(f"    ❌ 显卡妹调用失败")
+            print(f"    ⚠️ 显卡妹调用失败，降温度重试 (t=0.3)...")
+            raw = call_xianka(prompt, max_tokens=4096, temperature=0.3)
+        if not raw:
+            print(f"    ❌ 显卡妹调用失败，跳过 {series_key}")
             continue
         m = re.search(r'\[[\s\S]*\]', raw)
         if not m:
+            print(f"    ⚠️ 返回无 JSON 数组，回退提取 JSON 对象...")
+            m = re.search(r'\{[\s\S]*\}', raw)
+        if not m:
+            print(f"    ❌ 无法从返回中提取任何 JSON，跳过 {series_key}")
             continue
         try:
             candidates = json.loads(m.group())
+            if isinstance(candidates, dict):
+                candidates = [candidates]
         except json.JSONDecodeError:
+            print(f"    ❌ JSON 解析失败，跳过 {series_key}")
+            continue
+        if not isinstance(candidates, list):
+            print(f"    ⚠️ 返回非数组 JSON，跳过")
             continue
         accepted = 0
         for seed in candidates:

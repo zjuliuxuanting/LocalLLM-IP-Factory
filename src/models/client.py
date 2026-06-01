@@ -94,7 +94,12 @@ class HttpClient:
                     )
                 except (error.URLError, OSError, json.JSONDecodeError, KeyError) as e:
                     last_err = e
+                    reason = type(e).__name__
+                    detail = str(e)[:120]
+                    print(f"    [http] 请求失败 (attempt {attempt+1}/{self._max_retries+1}): {reason} - {detail}", file=__import__('sys').stderr)
 
+        if last_err:
+            print(f"    [http] 全部重试耗尽，最后错误: {type(last_err).__name__} - {str(last_err)[:120]}", file=__import__('sys').stderr)
         return None
 
     def generate_structured(
