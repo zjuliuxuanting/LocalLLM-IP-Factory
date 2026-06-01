@@ -27,3 +27,7 @@ output/metrics/
 # 缓存数据（每次运行自动生成）
 data/source_cache/shared/auto_*.txt
 data/series_proposals/*.json
+
+# 项目文档（用户自定义，不提交）
+docs/V3_DESIGN.md
+docs/SERIES_TOPICS.md
