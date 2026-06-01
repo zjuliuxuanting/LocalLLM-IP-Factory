@@ -32,6 +32,8 @@ async def execute(ctx: CardContext, context: str = "") -> CardContext:
     ctx.draft = text
     ok, reason = gate.check_draft(text, ctx.card)
     if not ok:
+        print(f"    [draft] 质检失败: {reason}")
+        print(f"    [draft] 草稿前200字: {text[:200].replace(chr(10), ' ')}")
         if gate.should_retry_stage(ctx.draft_retries):
             ctx.draft_retries += 1
             ctx.stage_retries = ctx.draft_retries

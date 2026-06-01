@@ -175,7 +175,7 @@ def analyze_graph_gaps() -> dict:
 # 3. 新系列提案生成
 # ══════════════════════════════════════════════════════════════
 
-SERIES_PROPOSAL_PROMPT = """你是喵言汪语IP的首席内容架构师。当前内容网络出现饱和信号，需要你提出一个**有严格架构约束**的新系列。
+SERIES_PROPOSAL_PROMPT = """你是LocalLLM-IP-FactoryIP的首席内容架构师。当前内容网络出现饱和信号，需要你提出一个**有严格架构约束**的新系列。
 
 ## 现有系列
 {existing_series}

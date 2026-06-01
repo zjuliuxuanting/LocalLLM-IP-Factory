@@ -64,8 +64,8 @@ STOP_WORDS = frozenset({
 
 PRIORITY = ["A", "B", "C", "D", "E", "F", "G"]
 
-# 显卡妹 LLM 配置（供 Crawl4AI 的 LLM extraction strategy 使用）
-# 显卡妹 API = OpenAI 兼容: {XIANKA_GATEWAY}/v1/chat/completions
+# LLM LLM 配置（供 Crawl4AI 的 LLM extraction strategy 使用）
+# LLM API = OpenAI 兼容: {XIANKA_GATEWAY}/v1/chat/completions
 XIANKA_LLM_CONFIG = LLMConfig(
     provider=f"openai/{XIANKA_MODEL}",
     api_token="",
@@ -126,10 +126,10 @@ def step1_generate_seeds(pool: dict, target: int):
         )
         raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
         if not raw:
-            print(f"    ⚠️ 显卡妹调用失败，重试...")
+            print(f"    ⚠️ LLM调用失败，重试...")
             raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
         if not raw:
-            print(f"    ❌ 显卡妹调用失败，跳过 {series_key}")
+            print(f"    ❌ LLM调用失败，跳过 {series_key}")
             continue
         m = re.search(r'\[[\s\S]*\]', raw)
         if not m:
@@ -185,6 +185,8 @@ def classify_url(url: str) -> tuple[str, int, str]:
 
     Returns: (category: str, priority: int, label: str)
     """
+    if url.startswith("local://"):
+        return "local", 10, "本地信源"
     domain = re.sub(r'^https?://(www\.)?', '', url).split('/')[0].lower()
     for suffix, cat, pri, label in SOURCE_WHITELIST:
         if suffix.startswith("."):
@@ -289,7 +291,7 @@ async def crawl_page(crawler, url: str) -> tuple[str, str]:
 
 
 def llm_rank_sources(goal: str, sources: list[dict]) -> list[dict]:
-    """用显卡妹对抓取的原文按 goal 相关性排序 + 提取关键段落
+    """用 LLM对抓取的原文按 goal 相关性排序 + 提取关键段落
 
     返回 [{"url": ..., "title": ..., "relevance": 0-10, "key_paragraphs": [...], "summary": ...}]
     """
@@ -395,6 +397,45 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
 
     all_hits = []
     has_cn = bool(re.search(r'[\u4e00-\u9fff]', kw))
+
+    # ═════ 本地信源优先检查（通过注册中心关键词匹配）═════
+    if REG_INDEX.exists():
+        reg = json.loads(REG_INDEX.read_text())
+        kw_words = set(kw.lower().split())
+        local_sources = [
+            s for s in reg.values()
+            if s.get("source_type") == "local_translated"
+            and s.get("cache_path") and Path(s["cache_path"]).exists()
+        ]
+        for src in local_sources:
+            src_kws = set(k.lower() for k in src.get("keywords", []))
+            matched_kws = kw_words & src_kws
+            if not matched_kws:
+                for src_kw in src_kws:
+                    if any(w in src_kw or src_kw in w for w in kw_words):
+                        matched_kws = {src_kw}
+                        break
+            if matched_kws:
+                try:
+                    content = Path(src["cache_path"]).read_text(encoding="utf-8", errors="ignore")[:12000]
+                except Exception:
+                    continue
+                if len(content) < 200:
+                    continue
+                all_hits.append({
+                    "url": src.get("url", f"local://{src['title']}"),
+                    "title": src.get("title", src["source_id"]),
+                    "raw_content": content,
+                    "source_category": "local",
+                    "source_priority": 10,
+                    "source_label": "本地信源",
+                    "_is_local": True,
+                })
+                print(f"    📁 本地信源匹配: {src.get('title', '')} (kw: {', '.join(matched_kws)})")
+                if len(all_hits) >= 1:
+                    break
+    # ═════ 本地信源结束 ═════
+
     if has_cn:
         print(f"    🌏 中文 kw，优先百度")
         for level in (0, 2, 3):
@@ -449,6 +490,9 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
 
     raw_sources = []
     for hit in all_hits[:6]:
+        if hit.get("_is_local"):
+            raw_sources.append(hit)
+            continue
         cat, pri, label = classify_url(hit["url"])
         page_title, content = await crawl_page(crawler, hit["url"])
         if not content:
@@ -474,7 +518,7 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
         print(f"    ❌ LLM 过滤后无有效信源")
         return None
 
-    ranked = ranked[:4]
+    ranked = ranked[:3]
     print(f"    🔍 LLM 筛选后保留 {len(ranked)} 个信源")
     sufficient, reason = llm_check_sufficiency(goal, ranked)
     print(f"    📊 信源充足性: {'✅' if sufficient else '⚠️'} {reason}")
@@ -584,8 +628,9 @@ async def step2_dispatch(pool: dict, count: int):
             continue
         seeds = pool[series].get("seeds", [])
         pending = [s for s in seeds if s.get("status") == "pending"]
-        import random; random.shuffle(pending)
         all_pending.extend([(series, s) for s in pending])
+
+    import random; random.shuffle(all_pending)
 
     dispatched = 0
     for series_key, seed in all_pending[:count]:
@@ -621,12 +666,12 @@ async def step2_dispatch(pool: dict, count: int):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="喵言汪语 V3 · 阶段一+二：种子生成 + 信源派发 (LLM增强)")
+    parser = argparse.ArgumentParser(description="LocalLLM-IP-Factory · 阶段一+二：种子生成 + 信源派发 (LLM增强)")
     parser.add_argument("--target", type=int, default=300, help="种子池 pending 目标数")
     parser.add_argument("--count", type=int, default=10, help="本次派发卡片数")
     args = parser.parse_args()
 
-    print(f"🚀 喵言汪语 V3 · 阶段一+二 (target≥{args.target}, dispatch={args.count})")
+    print(f"🚀 LocalLLM-IP-Factory · 阶段一+二 (target≥{args.target}, dispatch={args.count})")
     print(f"   LLM: {XIANKA_MODEL} @ {XIANKA_GATEWAY}")
     print()
 

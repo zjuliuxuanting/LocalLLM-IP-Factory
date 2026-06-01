@@ -61,7 +61,8 @@ class StageGate:
             return False, f"内容重复: {'; '.join(reps[:3])}"
 
         # 内容深度检查（信息密度过低或空泛套话过多）
-        ok_depth, depth_msg = check_content_depth(text)
+        series = card.get("section", "")
+        ok_depth, depth_msg = check_content_depth(text, series_key=series)
         if not ok_depth:
             return False, f"内容质量不足: {depth_msg}"
 

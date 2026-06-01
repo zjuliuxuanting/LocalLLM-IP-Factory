@@ -1,0 +1,40 @@
+# Example Research Note: Dog Training Basics
+
+Positive reinforcement is the most effective method for training dogs.
+Studies show that dogs learn faster when rewarded with treats rather than
+punished.
+
+## Key Concepts
+
+1. Operant conditioning, first described by B.F. Skinner in 1938, is the
+   foundation of modern animal training. Subjects learn to associate
+   actions with consequences.
+
+2. Clicker training bridges the gap between behavior and reward using a
+   distinct marker sound. The click marks the exact moment of correct
+   behavior, eliminating ambiguity in communication.
+
+3. Shaping rewards successive approximations of the target behavior.
+   Instead of waiting for perfection, trainers reward small steps.
+
+## Research Findings
+
+A study by Dr. Claudia Fugazza at Eotvos Lorand University in Budapest
+(2020) demonstrated that subjects can learn and retain up to 12 new words
+per week using systematic shaping techniques.
+
+Functional MRI studies found that the caudate nucleus activates in
+anticipation of rewards, suggesting positive emotional states during
+training sessions.
+
+## Common Mistakes
+
+- Inconsistent timing of rewards (the number one beginner error)
+- Using too many new commands simultaneously
+- Punishing instead of redirecting unwanted behaviors
+- Ignoring stress signals during training
+
+## Recommended Protocol
+
+Start with 2-3 high-frequency words. Practice in short 5-minute sessions,
+3-4 times daily. Always end on a success. Never train when frustrated.

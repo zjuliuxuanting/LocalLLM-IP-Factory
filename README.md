@@ -20,9 +20,11 @@ cp config/.env.example config/.env
 # 填入你的 GPU 地址和代理
 
 # 3. 放话题定义文件到 docs/SERIES_TOPICS.md（格式见下文）
-#    或用 PM agent 生成
 
-# 4. 跑
+# 4. (可选) 测试本地信源功能
+cp demo_data/example_document.txt data/source_cache/local/
+
+# 5. 跑
 bash scripts/pipeline_all.sh --target 300 --count 10
 ```
 
@@ -82,7 +84,8 @@ bash scripts/pipeline_all.sh --target 300 --count 10
 |------|------|
 | `scripts/pipeline_all.sh` | **全流程入口**，支持 `--repeat` `--duration` `--interval` |
 | `scripts/generate_and_dispatch.py` | 阶段一+二：种子生成 + 信源派发 |
-| `scripts/reset_all.py` | 一键清空所有卡片、种子、缓存 |
+| `scripts/translate_sources.py` | 格式转换：将 `local/` 中的 PDF/Office/HTML 转为 markdown |
+| `scripts/reset_all.py` | 一键清空卡片、种子、缓存（保留本地信源） |
 | `docs/SERIES_TOPICS.md` | **系列话题定义**— 你的内容 IP 文件，种子生成依赖 |
 | `src/models/prompts/seed.py` | 种子生成 prompt，从 `SERIES_TOPICS.md` 读取 |
 | `src/models/prompts/draft.py` | 初稿 prompt，含信源引用指令 |
@@ -146,6 +149,8 @@ LLM(qwen35b @ <GPU_SERVER>:8080)
   ├── 阶段一: 读 docs/SERIES_TOPICS.md → 生成种子 → seed_pool.json
   │
   ├── 阶段二: DuckDuckGo/百度搜索 → Crawl4AI 抓取 → LLM 排序
+  │           或: 本地信源优先匹配
+  │   ├── data/source_cache/local/         ← 你的本地文档（PDF/DOCX/HTML/...）
   │   ├── data/source_cache/shared/        ← 信源缓存
   │   ├── data/source_registry/index.json  ← 信源注册中心
   │   └── data/queue/cards.json            ← 卡片队列 (status=ready)
@@ -160,6 +165,26 @@ LLM(qwen35b @ <GPU_SERVER>:8080)
       ├── S7 Factcheck: 事实核查
       └── data/queue/cards.json → status 更新
 ```
+
+## 本地信源（高优先级）
+
+阶段二自动优先使用本地文档作为信源：
+
+```bash
+# 1. 把文档放入 local/
+#    支持的格式：.pdf .doc .docx .html .htm .rtf .txt .md
+open data/source_cache/local/
+
+# 2. 用 LLM 转换格式（PDF→MD, Office→TXT, HTML→MD）
+python3 scripts/translate_sources.py
+
+# 3. 跑 pipeline，本地信源自动优先匹配
+bash scripts/pipeline_all.sh --target 300 --count 10
+```
+
+匹配规则：`translate_sources.py` 在翻译时让显卡妹从文档内容中提取英文关键词，注册到 `source_registry`。`dispatch_one()` 用种子关键词与注册关键词匹配——有交集即匹配，优先作为信源（优先级 10，最高）。
+
+`reset_all.py` 会保留 `local/` 目录不变，只清空运行产生的缓存。
 
 ## 权限
 

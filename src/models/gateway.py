@@ -25,7 +25,7 @@ def call_xianka(
     temperature: float = TEMPERATURE,
     structured: bool = False,
 ) -> Optional[str]:
-    """调用显卡妹模型"""
+    """调用 LLM模型"""
     if structured:
         resp = _xianka.generate_structured(
             prompt, model=XIANKA_MODEL,

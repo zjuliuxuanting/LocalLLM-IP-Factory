@@ -24,8 +24,11 @@ def parse_project_map() -> tuple:
 
     text = map_file.read_text(encoding="utf-8")
 
+    # 先移除所有范围引用如 "F2-1-1~F2-1-9"（范围起止都不是实际卡片 ID）
+    text_clean = re.sub(r'[A-Z]\d+(?:-\d+)+\s*~\s*[A-Z]\d+(?:-\d+)+', '', text)
+
     # 收集所有已使用的 ID
-    for mid in re.findall(r'[A-Z]\d+(?:-\d+)+(?:-\d+)?', text):
+    for mid in re.findall(r'[A-Z]\d+(?:-\d+)+(?:-\d+)?', text_clean):
         used_ids.add(mid)
 
     # 解析"可扩展区域"

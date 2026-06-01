@@ -2,7 +2,7 @@
 """
 阶段一：种子生成
 
-从已有系列中检查 pending 种子数，不足时调显卡妹补种。
+从已有系列中检查 pending 种子数，不足时调 LLM补种。
 包含第零步：系列扩展（检测饱和→自动提案→写入）。
 
 用法: python3 scripts/seed_generator.py --target 500
@@ -68,7 +68,7 @@ def step1_generate_seeds(pool: dict, target: int):
 
         raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
         if not raw:
-            print(f"    ❌ 显卡妹调用失败")
+            print(f"    ❌ LLM调用失败")
             continue
 
         import re
@@ -96,11 +96,11 @@ def step1_generate_seeds(pool: dict, target: int):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="喵言汪语 V3 · 阶段一：种子生成")
+    parser = argparse.ArgumentParser(description="LocalLLM-IP-Factory · 阶段一：种子生成")
     parser.add_argument("--target", type=int, default=500, help="种子池 pending 目标数")
     args = parser.parse_args()
 
-    print(f"🌱 喵言汪语 V3 · 阶段一 (目标 pending ≥ {args.target})")
+    print(f"🌱 LocalLLM-IP-Factory · 阶段一 (目标 pending ≥ {args.target})")
     print()
 
     pool = store.read()

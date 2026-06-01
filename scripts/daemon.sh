@@ -1,5 +1,5 @@
 #!/bin/bash
-# 喵言汪语 · 守护启动脚本
+# LocalLLM-IP-Factory · 守护启动脚本
 # 用法: ./scripts/daemon.sh start|stop|status|restart
 #
 # 架构：
@@ -12,7 +12,7 @@
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PROJECT="喵言汪语"
+PROJECT="LocalLLM-IP-Factory"
 PID_FILE="$SCRIPT_DIR/.daemon.pid"
 LOG_FILE="$SCRIPT_DIR/output/logs/daemon.log"
 

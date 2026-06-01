@@ -27,7 +27,7 @@ def build_factcheck_prompt(card: dict, polished_text: str, source_text: str) -> 
     subsection = card.get("subsection", "")
 
     parts = [
-        f"你是喵言汪语的事实核查员。请逐条核查以下卡片正文中的关键断言是否可以在信源中找到支撑。",
+        f"你是LocalLLM-IP-Factory的事实核查员。请逐条核查以下卡片正文中的关键断言是否可以在信源中找到支撑。",
         f"",
         f"卡片: {cid} | {subsection}",
         f"",

@@ -11,7 +11,7 @@ def build_polish_prompt(card: dict, revised_text: str) -> str:
     forbidden = card.get("forbidden") or []
 
     parts = [
-        f"你是喵言汪语的首席编辑。请对以下卡片正文进行最终文字润色。直接输出纯文本。",
+        f"你是LocalLLM-IP-Factory的首席编辑。请对以下卡片正文进行最终文字润色。直接输出纯文本。",
         f"",
         f"卡片: {cid} | {subsection}",
         f"期望风格: {style}",

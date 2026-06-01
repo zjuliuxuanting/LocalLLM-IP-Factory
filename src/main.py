@@ -1,4 +1,4 @@
-"""喵言汪语 V3 · 统一 CLI"""
+"""LocalLLM-IP-Factory · 统一 CLI"""
 import argparse, asyncio, sys
 
 def cmd_pipeline(args):
@@ -26,7 +26,7 @@ def cmd_status(args):
     print(f"📊 队列: {len(cards)} 张 | {dict(s)}")
 
 def main():
-    parser = argparse.ArgumentParser(description="喵言汪语 V3")
+    parser = argparse.ArgumentParser(description="LocalLLM-IP-Factory")
     sub = parser.add_subparsers(dest="command")
     pp = sub.add_parser("pipeline")
     pp_sub = pp.add_subparsers(dest="action")

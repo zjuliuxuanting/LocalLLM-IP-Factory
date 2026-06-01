@@ -1,5 +1,5 @@
 #!/bin/bash
-# 喵言汪语 · Watchdog（给 cron 用）
+# LocalLLM-IP-Factory · Watchdog（给 cron 用）
 # cron: * * * * * /bin/bash <PROJECT_ROOT>/scripts/watchdog.sh
 #
 # 只做一件事：确保 daemon 进程活着。

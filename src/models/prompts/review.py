@@ -30,7 +30,7 @@ def build_review_prompt(card: dict, draft_text: str, source_text: str = "") -> s
     subsection = card.get("subsection", "")
 
     parts = [
-        f"你是喵言汪语的审稿编辑。请对以下卡片初稿进行多维审核。",
+        f"你是LocalLLM-IP-Factory的审稿编辑。请对以下卡片初稿进行多维审核。",
         f"",
         f"卡片: {cid} | {subsection}",
         f"期望风格: {style}",

@@ -29,4 +29,17 @@ async def execute(ctx: CardContext) -> CardContext:
 
     ctx.factcheck_result = fc
     ctx.final = text
+
+    # 轻拦：高严重度事实错误 → 记入 ctx 并触发重写
+    issues = fc.get("factcheck", {}).get("claims_checked", [])
+    high_severity = [i for i in issues if i.get("severity") == "high" and not i.get("in_sources", True)]
+    if high_severity and gate.should_retry_stage(ctx.draft_retries):
+        ctx.draft_retries += 1
+        ctx.stage_retries = ctx.draft_retries
+        ctx.factcheck_issues = [i["issue"][:200] for i in high_severity[:3]]
+        fc_context = "事实核查发现以下问题，请在重写时修正：\n" + "\n".join(f"- {i}" for i in ctx.factcheck_issues)
+        logger.warning(f"  ⚠️ {ctx.card_id} 事实错误 {len(high_severity)} 处，重试初稿")
+        from src.pipeline.stages.draft import execute as draft_execute
+        return await draft_execute(ctx, context=fc_context)
+
     return ctx

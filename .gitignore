@@ -25,7 +25,6 @@ output/reports/
 output/metrics/
 
 # 缓存数据（每次运行自动生成）
-data/source_cache/shared/auto_*.txt
 data/series_proposals/*.json
 
 # 项目文档（用户自定义，不提交）
@@ -37,4 +36,6 @@ PROJECT_MAP.md
 data/queue/
 data/seed_pool.json
 data/source_registry/
-data/source_cache/shared/
+data/source_cache/
+data/knowledge_graph/
+data/reference/

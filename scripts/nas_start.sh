@@ -1,12 +1,12 @@
 #!/bin/bash
-# 喵言汪语 V3 · NAS 阶段三启动脚本
+# LocalLLM-IP-Factory · NAS 阶段三启动脚本
 # 推到 NAS 后运行：bash scripts/nas_start.sh
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
-echo "🐱 喵言汪语 V3 · NAS 阶段三"
+echo "🐱 LocalLLM-IP-Factory · NAS 阶段三"
 echo "========================"
 
 # 1. 安装依赖

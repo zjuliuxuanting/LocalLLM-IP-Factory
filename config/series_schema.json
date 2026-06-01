@@ -1,0 +1,70 @@
+{
+  "description": "喵言汪语系列定义结构",
+  "type": "object",
+  "patternProperties": {
+    "^[A-Z]$": {
+      "type": "object",
+      "required": [
+        "name", "topic", "style", "forbidden", "source_policy",
+        "target_ratio", "engine_pref", "avg_chars",
+        "subtopics", "goal_rule", "kw_rule",
+        "example_seed", "notes"
+      ],
+      "properties": {
+        "name": {"type": "string", "description": "系列中文名称，从 SERIES_TOPICS.md 提取"},
+        "topic": {"type": "string", "description": "格式：'{代码} {name}'，如 'B 背景知识 / 沟通简史'"},
+        "style": {"type": "string", "description": "写作风格，从 SERIES_TOPICS.md '风格' 字段"},
+        "forbidden": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "文中禁止出现的词"
+        },
+        "source_policy": {
+          "type": "string",
+          "enum": ["required", "optional"],
+          "description": "信源要求：required=必须，optional=可选"
+        },
+        "target_ratio": {
+          "type": "number",
+          "description": "在总种子池中的目标占比"
+        },
+        "engine_pref": {
+          "type": "string",
+          "description": "首选搜索引擎，从 SERIES_TOPICS.md '引擎' 字段提取"
+        },
+        "avg_chars": {
+          "type": "integer",
+          "description": "卡片平均字数"
+        },
+        "subtopics": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "子话题列表，从 SERIES_TOPICS.md '子话题' 字段"
+        },
+        "goal_rule": {
+          "type": "string",
+          "description": "写作目标规则，从 SERIES_TOPICS.md '目标规则' 字段"
+        },
+        "kw_rule": {
+          "type": "string",
+          "description": "关键词规则，从 SERIES_TOPICS.md '关键词规则' 字段"
+        },
+        "example_seed": {
+          "type": "object",
+          "required": ["title", "goal", "engine", "kw"],
+          "properties": {
+            "title": {"type": "string"},
+            "goal": {"type": "string"},
+            "engine": {"type": "string"},
+            "kw": {"type": "string"}
+          },
+          "description": "示例种子，从 SERIES_TOPICS.md '示例种子' 字段"
+        },
+        "notes": {
+          "type": "string",
+          "description": "备注，从 SERIES_TOPICS.md '备注' 字段"
+        }
+      }
+    }
+  }
+}

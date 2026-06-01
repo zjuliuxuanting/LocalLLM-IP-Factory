@@ -181,7 +181,7 @@ def build_next_edges(nodes: list, existing_edges: list) -> list:
 
 def _classify_prompt(card_a: str, text_a: str, card_b: str, text_b: str) -> str:
     """构建语义关系分类 prompt"""
-    return f"""分析以下两张喵言汪语卡片之间的关系，返回JSON。
+    return f"""分析以下两张LocalLLM-IP-Factory卡片之间的关系，返回JSON。
 
 卡片A ({card_a}): {text_a[:300]}
 卡片B ({card_b}): {text_b[:300]}

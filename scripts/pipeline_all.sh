@@ -1,5 +1,5 @@
 #!/bin/bash
-# 喵言汪语 V3 · 一体化全流程
+# LocalLLM-IP-Factory · 一体化全流程
 # 本地运行，不需要 NAS。
 # 用法:
 #   单次运行: bash scripts/pipeline_all.sh --target 300 --count 10
@@ -62,6 +62,38 @@ if ! lsof -i :8899 >/dev/null 2>&1; then
     $PYTHON -m http.server 8899 > /dev/null 2>&1 &
 fi
 
+# ── 系列定义自动生成 ──
+if $PYTHON -c "from config.series_definitions import all_series_keys; exit(0 if len(all_series_keys())==0 else 1)" 2>/dev/null; then
+    echo "📝 系列定义为空，调用 LLM 从 SERIES_TOPICS.md 自动生成..."
+    set -a; source config/.env 2>/dev/null; set +a
+    $PYTHON scripts/import_series_names.py --apply 2>&1 | sed 's/^/  /'
+fi
+
+# ═══════════════════════════════════════
+# 第零步：本地信源翻译（只跑一次）
+# ═══════════════════════════════════════
+LOCAL_DIR="data/source_cache/local"
+if [ -d "$LOCAL_DIR" ] && [ -n "$(ls -A "$LOCAL_DIR" 2>/dev/null)" ]; then
+    NEW_COUNT=$($PYTHON -c "
+import json, hashlib, pathlib
+f = pathlib.Path('data/source_registry/index.json')
+reg = json.loads(open(f).read()) if f.exists() else {}
+tracked = set()
+for v in reg.values():
+    if v.get('source_type') == 'local_translated' and v.get('original_file'):
+        tracked.add(str(pathlib.Path(v['original_file']).resolve()))
+local = pathlib.Path('$LOCAL_DIR')
+untracked = [p.name for p in local.iterdir() if p.is_file() and str(p.resolve()) not in tracked]
+print(len(untracked))
+" 2>/dev/null || echo "0")
+    if [ "$NEW_COUNT" -gt 0 ]; then
+        echo ""
+        echo "📁 第零步：本地信源翻译 ($NEW_COUNT 个新文档)"
+        echo "-------------------------------------"
+        $PYTHON scripts/translate_sources.py
+    fi
+fi
+
 # 循环或单次执行
 # ── 注意：set -e 已移除，因为 generate_and_dispatch.py 退出时 asyncio 清理
 #     会触发非零返回码，导致 bash 提前退出。改用手动错误检查。──
@@ -75,7 +107,7 @@ while true; do
 
     echo ""
     echo "=============================================="
-    echo "🐱 喵言汪语 V3 · 周期 $CYCLE"
+    echo "🐱 LocalLLM-IP-Factory · 周期 $CYCLE"
     echo "=============================================="
 
     # ═════ 阶段一+二 ═════

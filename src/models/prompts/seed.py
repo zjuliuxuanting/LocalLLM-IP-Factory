@@ -91,7 +91,7 @@ def build_seed_generation_prompt(
     goal_rule = s.get("goal_rule", "写作目标，≥20字")
     kw_rule = s.get("kw_rule", "英文关键词 ≥2 词")
 
-    return f"""你是喵言汪语IP的资深内容策划。为"{topic}"系列生成{needed}个新话题种子。
+    return f"""你是LocalLLM-IP-FactoryIP的资深内容策划。为"{topic}"系列生成{needed}个新话题种子。
 
 ## 系列特性
 - 名称: {s.get('name', topic)}

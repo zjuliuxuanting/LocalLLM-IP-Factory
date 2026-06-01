@@ -56,7 +56,7 @@ def _check_kw_quality(kw: str, engine: str) -> tuple[bool, str]:
     """搜索关键词质量检查"""
     if not kw or len(kw.strip()) < 3:
         return False, "搜索词过短"
-    # 检查是否含中文（显卡妹有时生成中文 kw，DuckDuckGo 搜不到）
+    # 检查是否含中文（LLM有时生成中文 kw，DuckDuckGo 搜不到）
     if re.search(r'[\u4e00-\u9fff]', kw):
         return False, f"kw 含中文，搜索引擎无法检索: '{kw[:40]}'"
     if engine == "web" and len(kw.split()) < 2:

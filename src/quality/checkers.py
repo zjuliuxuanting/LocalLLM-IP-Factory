@@ -1,7 +1,9 @@
 """原子检查函数
 
 独立的检查器，不依赖外部服务，纯规则匹配。
+content_depth 调用 LLM 评估。
 """
+import json
 import re
 
 
@@ -95,31 +97,53 @@ def check_repetition(text: str, threshold: int = 3) -> list[str]:
     return issues
 
 
-def check_content_depth(text: str) -> tuple[bool, str]:
-    """检查内容深度：是否有实质性信息而非空泛描述"""
-    # 统计含数字/年份的句子比例（科普卡片应有一定事实密度）
-    sentences = re.split(r'[。！？\n]', text)
-    meaningful = [s.strip() for s in sentences if len(s.strip()) >= 15]
+def check_content_depth(text: str, series_key: str = "") -> tuple[bool, str]:
+    """调用 LLM 检查内容深度：是否有实质性信息而非空泛描述"""
+
+    # 趣味/幽默类系列（F）跳过信息密度检查
+    if series_key.upper() == "F":
+        return True, "OK"
+
+    meaningful = [s.strip() for s in re.split(r'[。！？\n]', text) if len(s.strip()) >= 15]
     if not meaningful:
         return False, "内容过短，缺乏实质性句子"
 
-    # 含数字/年份/专名的句子比例应 > 10%（短卡可放宽）
+    # 超过 100 字 + 至少 3 个有意义句子 = 有基础篇幅，调 LLM 评估
+    if len(text) < 100 or len(meaningful) < 3:
+        return False, "内容过短"
+
+    from src.models.gateway import call_xianka
+    preview = text[:1500].replace('"', "'")
+    prompt = f"""判断以下科普短文的信息密度是否足够。
+
+标准：
+- 足够：包含具体事实、数据、研究结论或专业概念，不是纯空泛描述
+- 不足：只有笼统概括、常识性描述、没有实质性信息
+
+只返回 JSON：{{"sufficient": true/false, "reason": "一句话原因"}}
+
+{preview}"""
+    raw = call_xianka(prompt, max_tokens=256, temperature=0.2, structured=True)
+    if isinstance(raw, dict):
+        ok = raw.get("sufficient", False)
+        reason = raw.get("reason", "")
+        return ok, f"内容质量不足: {reason}" if not ok else "OK"
+    # LLM 调用失败时降级到正则兜底
+    return _regex_depth_fallback(text)
+
+
+def _regex_depth_fallback(text: str) -> tuple[bool, str]:
+    """LLM 不可用时的正则兜底"""
+    sentences = re.split(r'[。！？\n]', text)
+    meaningful = [s.strip() for s in sentences if len(s.strip()) >= 15]
     with_info = sum(1 for s in meaningful
-                   if re.search(r'\d{2,}', s) or re.search(r'[A-Z][a-z]{2,}', s))
-    ratio = with_info / len(meaningful)
-
-    # 检查是否有空泛套话（"总之""综上所述""正如我们所知"等）占比过高
-    filler_patterns = ["总之", "综上所述", "正如我们所知", "总而言之", "由此可见"]
-    fillers = sum(1 for f in filler_patterns if f in text)
-    filler_ratio = fillers / max(len(meaningful), 1)
-
-    issues = []
-    if ratio < 0.1:
-        issues.append(f"信息密度过低（仅{ratio:.0%}的句子含事实信息）")
-    if filler_ratio > 0.3:
-        issues.append(f"空泛套话过多（{fillers}处）")
-
-    return len(issues) == 0, "; ".join(issues)
+                   if re.search(r'\d{2,}', s)
+                    or re.search(r'[A-Z][a-z]{2,}', s)
+                    or re.search(r'[《》""]', s))
+    ratio = with_info / max(len(meaningful), 1)
+    if ratio < 0.07:
+        return False, f"信息密度过低（仅{ratio:.0%}的句子含事实信息）"
+    return True, "OK"
 
 
 def extract_claims(text: str, max_claims: int = 6) -> list[str]:

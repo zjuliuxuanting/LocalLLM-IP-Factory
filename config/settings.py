@@ -1,4 +1,4 @@
-"""喵言汪语 · 统一配置
+"""LocalLLM-IP-Factory · 统一配置
 
 纯配置和路径定义。所有 IO 操作通过 src/io/store.py 完成。
 敏感信息优先从环境变量读取，其次是 .env 文件。
