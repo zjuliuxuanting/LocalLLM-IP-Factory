@@ -125,7 +125,8 @@ class HttpClient:
         try:
             return json.loads(resp.content)
         except json.JSONDecodeError:
-            pass
+            preview = resp.content[:300].replace('\n', ' ')
+            print(f"    [http] 响应不是纯 JSON (前300字): {preview}", file=__import__('sys').stderr)
         # 尝试提取 JSON
         import re
         m = re.search(r'\{[\s\S]*\}', resp.content)

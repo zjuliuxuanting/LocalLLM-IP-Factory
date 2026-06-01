@@ -126,8 +126,8 @@ def step1_generate_seeds(pool: dict, target: int):
         )
         raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
         if not raw:
-            print(f"    ⚠️ 显卡妹调用失败，降温度重试 (t=0.3)...")
-            raw = call_xianka(prompt, max_tokens=4096, temperature=0.3)
+            print(f"    ⚠️ 显卡妹调用失败，重试...")
+            raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
         if not raw:
             print(f"    ❌ 显卡妹调用失败，跳过 {series_key}")
             continue

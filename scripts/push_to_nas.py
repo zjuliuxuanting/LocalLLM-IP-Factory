@@ -15,7 +15,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from src.io.store import AtomicJsonStore
 from config.settings import QUEUE_FILE
 
-NAS_PATH = "/tmp/nas_mount/workspace_openclaw/喵言汪语/"
+NAS_PATH = "/<NAS_MOUNT>/<NAS_PROJECT_PATH>/"
 
 
 def push():

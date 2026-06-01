@@ -16,6 +16,10 @@ async def execute(ctx: CardContext, context: str = "") -> CardContext:
     raw = call_xianka(prompt, max_tokens=2048, temperature=0.7, structured=True)
 
     if raw is None:
+        print(f"  ⚠️ {ctx.card_id} S2 模型未返回 JSON，重试...")
+        raw = call_xianka(prompt, max_tokens=2048, temperature=0.7, structured=True)
+
+    if raw is None:
         ctx.mark_failed("S2: 模型调用失败")
         return ctx
 
