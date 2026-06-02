@@ -33,6 +33,7 @@ docs/SERIES_TOPICS.md
 PROJECT_MAP.md
 
 # 运行时数据（自动生成，不提交）
+data/.network_status.json
 data/queue/
 data/seed_pool.json
 data/source_registry/

@@ -32,8 +32,11 @@ class HttpClient:
         max_retries: int = 2,
         retry_delay: float = 5.0,
     ):
-        self._url = gateway_url.rstrip("/") + "/v1/chat/completions"
-        self._auth = auth_token
+        url = gateway_url.rstrip("/")
+        if not url.endswith("/v1"):
+            url += "/v1"
+        self._url = url + "/chat/completions"
+        self._auth = ("Bearer " + auth_token) if auth_token and not auth_token.startswith("Bearer ") else auth_token
         self._timeout = default_timeout
         self._max_retries = max_retries
         self._retry_delay = retry_delay

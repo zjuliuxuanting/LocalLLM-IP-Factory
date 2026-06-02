@@ -249,23 +249,32 @@ def main():
     print(f"\n🔄 开始转换...\n")
     for filepath in files:
         print(f"  📖 {filepath.name}...", end=" ", flush=True)
-        try:
-            raw_text = extract_text(filepath)
-            if len(raw_text) < 100:
-                print(f"⏭️  内容过短 ({len(raw_text)} chars)")
-                continue
+        ok = False
+        for attempt in range(3):
+            try:
+                raw_text = extract_text(filepath)
+                if len(raw_text) < 100:
+                    print(f"⏭️  内容过短 ({len(raw_text)} chars)")
+                    ok = True
+                    break
 
-            formatted, keywords = format_with_llm(raw_text, filepath.name)
-            kw_str = ", ".join(keywords[:8]) if keywords else "(LLM 未提取)"
-            chunks_count = len(chunk_text(formatted))
-            print(f"✅ LLM 格式化 ({len(formatted)} chars → {chunks_count} chunks) | kw: {kw_str}")
+                formatted, keywords = format_with_llm(raw_text, filepath.name)
+                kw_str = ", ".join(keywords[:8]) if keywords else "(LLM 未提取)"
+                chunks_count = len(chunk_text(formatted))
+                print(f"✅ LLM 格式化 ({len(formatted)} chars → {chunks_count} chunks) | kw: {kw_str}")
 
-            results = save_and_register(filepath, formatted, keywords)
-            for sid, cache_path, ci in results:
-                print(f"     ch{ci:02d} → {cache_path} [{sid}]")
-
-        except Exception as e:
-            print(f"❌ 失败: {e}")
+                results = save_and_register(filepath, formatted, keywords)
+                for sid, cache_path, ci in results:
+                    print(f"     ch{ci:02d} → {cache_path} [{sid}]")
+                ok = True
+                break
+            except Exception as e:
+                if attempt < 2:
+                    print(f"⚠️ 重试 ({attempt+1}/3): {e}")
+                else:
+                    print(f"❌ 失败: {e}")
+        if not ok:
+            print(f"  ❌ {filepath.name} 处理失败")
 
     print(f"\n✅ 转换完成")
 

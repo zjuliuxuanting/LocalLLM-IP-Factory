@@ -28,6 +28,10 @@ from config.settings import (
     MAX_TOKENS, TEMPERATURE, path_to_rel, rel_to_abs,
 )
 from src.pipeline.series_expansion import run_expansion_check
+from src.utils.logging import get_logger, setup as setup_logging
+from config.settings import LOGS_DIR
+
+glog = get_logger("dispatch")
 
 SHARED = SCRIPT_DIR / "data" / "source_cache" / "shared"
 REG_INDEX = SCRIPT_DIR / "data" / "source_registry" / "index.json"
@@ -35,6 +39,9 @@ CARDS_FILE = SCRIPT_DIR / "data" / "queue" / "cards.json"
 SHARED.mkdir(parents=True, exist_ok=True)
 REG_INDEX.parent.mkdir(parents=True, exist_ok=True)
 CARDS_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+CHAPTER_COOLING_DAYS = 3
+CHAPTER_COOLING_FILE = SCRIPT_DIR / "data" / "chapter_cooling.json"
 
 EXCLUDE_DOMAINS = [
     "bing.com", "duckduckgo.com", "go.microsoft.com", "facebook.com",
@@ -103,64 +110,141 @@ def step0_series_expansion(pool: dict):
 
 
 def step1_generate_seeds(pool: dict, target: int):
-    for series_key in all_series_keys():
-        if series_key not in pool:
-            print(f"  ⚠️ {series_key} 不在 seed_pool，跳过")
-            continue
-        data = pool[series_key]
+    base_keys = all_series_keys()
+    cooling = json.loads(CHAPTER_COOLING_FILE.read_text()) if CHAPTER_COOLING_FILE.exists() else {}
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    for series_key in base_keys:
+        # 确定当前最新章节的 pool key
+        chapter_keys = sorted(k for k in pool if k.startswith(series_key) and (k == series_key or k[len(series_key):].isdigit()))
+        if series_key in pool and chapter_keys and chapter_keys[-1] == series_key:
+            # 旧版: 把 base key 下的种子迁移到 {series_key}1
+            old_seeds = pool[series_key].get("seeds", [])
+            if old_seeds:
+                pool[f"{series_key}1"] = {
+                    "topic": pool[series_key].get("topic", ""),
+                    "style": pool[series_key].get("style", ""),
+                    "forbidden": pool[series_key].get("forbidden", []),
+                    "avg_chars": pool[series_key].get("avg_chars", 450),
+                    "seeds": old_seeds,
+                }
+                chapter_keys = [f"{series_key}1"]
+            pool[series_key]["seeds"] = []  # base key 不再存种子
+        current_key = chapter_keys[-1] if chapter_keys else f"{series_key}1"
+        data = pool.get(current_key) or pool.get(series_key)
+        if not data:
+            current_key = f"{series_key}1"
+            pool[current_key] = {
+                "topic": pool.get(series_key, {}).get("topic", ""),
+                "style": pool.get(series_key, {}).get("style", ""),
+                "forbidden": pool.get(series_key, {}).get("forbidden", []),
+                "avg_chars": pool.get(series_key, {}).get("avg_chars", 450),
+                "seeds": [],
+            }
+            data = pool[current_key]
         seeds = data.get("seeds", [])
+        total_seeds = len(seeds)
         pending_count = sum(1 for s in seeds if s.get("status") == "pending")
-        needed = max(0, target // len(all_series_keys()) - pending_count)
-        if needed <= 0:
+        per_series = target // len(base_keys)
+        # 硬上限：total >= per_series 则不再补种
+        if total_seeds >= per_series:
             continue
-        print(f"  🌱 {series_key}: pending={pending_count}, 需补 {needed} 个")
-        existing_titles = [s.get("title", "") for s in seeds]
-        s = get_series(series_key)
-        if not s:
+        needed = min(per_series - total_seeds, 10)  # 单周期最多补 10 个
+        print(f"  🌱 {current_key}: {total_seeds} total ({pending_count} pending), 需补 {needed} 个")
+        _generate_seeds_for(current_key, pool, needed, series_key)
+        # 首次生成种子记冷却（初始代 = 1 冷却）
+        cooling_key = f"{series_key}ch"
+        if cooling_key not in cooling:
+            cooling[cooling_key] = today
+
+    # ── 系列章节轮换：已耗尽且冷却 ≥3 天的 → 生成下一章种子 ──
+    cooling = json.loads(CHAPTER_COOLING_FILE.read_text()) if CHAPTER_COOLING_FILE.exists() else {}
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    for base_key in base_keys:
+        if base_key not in pool:
             continue
-        prompt = build_seed_generation_prompt(
-            series=series_key,
-            topic=s.get("topic", ""),
-            style=s.get("style", ""),
-            existing_titles=existing_titles,
-            needed=needed,
-        )
+        # 找该系列的最新章节
+        chapter_keys = sorted(k for k in pool if k.startswith(base_key) and (k == base_key or k[len(base_key):].isdigit()))
+        if not chapter_keys:
+            continue
+        latest = chapter_keys[-1]
+        latest_seeds = pool[latest].get("seeds", [])
+        remaining = sum(1 for s in latest_seeds if s.get("status") == "pending")
+        if remaining > 0:
+            continue  # 还有 pending 种子，不轮换
+        cooling_key = f"{base_key}ch"
+        last_date = cooling.get(cooling_key, "")
+        if last_date and last_date >= today:
+            continue  # 冷却中
+        next_ch = 1
+        for ck in chapter_keys:
+            num = ck[len(base_key):]
+            if num.isdigit() and int(num) >= next_ch:
+                next_ch = int(num) + 1
+        new_key = f"{base_key}{next_ch}"
+        print(f"  🔄 {base_key} 种子耗尽 → 生成 {new_key} 种子")
+        pool[new_key] = {
+            "topic": pool[base_key].get("topic", ""),
+            "style": pool[base_key].get("style", ""),
+            "forbidden": pool[base_key].get("forbidden", []),
+            "avg_chars": pool[base_key].get("avg_chars", 450),
+            "seeds": [],
+        }
+        _generate_seeds_for(new_key, pool, max(1, target // len(base_keys) // 2), base_key)
+        cooling[cooling_key] = today
+    CHAPTER_COOLING_FILE.write_text(json.dumps(cooling, indent=2))
+
+
+def _generate_seeds_for(pool_key: str, pool: dict, needed: int, series_key: str):
+    """为指定 pool_key 生成种子"""
+    data = pool[pool_key]
+    seeds = data.get("seeds", [])
+    existing_titles = [s.get("title", "") for s in seeds]
+    s = get_series(series_key)
+    if not s:
+        return
+    prompt = build_seed_generation_prompt(
+        series=series_key,
+        topic=s.get("topic", ""),
+        style=s.get("style", ""),
+        existing_titles=existing_titles,
+        needed=needed,
+    )
+    raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
+    if not raw:
+        print(f"    ⚠️ LLM调用失败，重试...")
         raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
-        if not raw:
-            print(f"    ⚠️ LLM调用失败，重试...")
-            raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
-        if not raw:
-            print(f"    ❌ LLM调用失败，跳过 {series_key}")
-            continue
-        m = re.search(r'\[[\s\S]*\]', raw)
-        if not m:
-            print(f"    ⚠️ 返回无 JSON 数组，回退提取 JSON 对象...")
-            m = re.search(r'\{[\s\S]*\}', raw)
-        if not m:
-            print(f"    ❌ 无法从返回中提取任何 JSON，跳过 {series_key}")
-            continue
-        try:
-            candidates = json.loads(m.group())
-            if isinstance(candidates, dict):
-                candidates = [candidates]
-        except json.JSONDecodeError:
-            print(f"    ❌ JSON 解析失败，跳过 {series_key}")
-            continue
-        if not isinstance(candidates, list):
-            print(f"    ⚠️ 返回非数组 JSON，跳过")
-            continue
-        accepted = 0
-        for seed in candidates:
-            if all(k in seed for k in ("title", "goal", "engine", "kw")):
-                result = inspect_seed(seed, series_key, existing_titles, check_source=False)
-                if result.passed:
-                    seed["status"] = "pending"
-                    seeds.append(seed)
-                    existing_titles.append(seed["title"])
-                    accepted += 1
-        pool[series_key]["seeds"] = seeds
-        store.write(pool)
-        print(f"    ✅ +{accepted} 种子")
+    if not raw:
+        print(f"    ❌ LLM调用失败，跳过 {pool_key}")
+        return
+    m = re.search(r'\[[\s\S]*\]', raw)
+    if not m:
+        print(f"    ⚠️ 返回无 JSON 数组，回退提取 JSON 对象...")
+        m = re.search(r'\{[\s\S]*\}', raw)
+    if not m:
+        print(f"    ❌ 无法从返回中提取任何 JSON，跳过 {pool_key}")
+        return
+    try:
+        candidates = json.loads(m.group())
+        if isinstance(candidates, dict):
+            candidates = [candidates]
+    except json.JSONDecodeError:
+        print(f"    ❌ JSON 解析失败，跳过 {pool_key}")
+        return
+    if not isinstance(candidates, list):
+        print(f"    ⚠️ 返回非数组 JSON，跳过")
+        return
+    accepted = 0
+    for seed in candidates:
+        if all(k in seed for k in ("title", "goal", "engine", "kw")):
+            result = inspect_seed(seed, series_key, existing_titles, check_source=False)
+            if result.passed:
+                seed["status"] = "pending"
+                seeds.append(seed)
+                existing_titles.append(seed["title"])
+                accepted += 1
+    pool[pool_key]["seeds"] = seeds
+    store.write(pool)
+    print(f"    ✅ +{accepted} 种子")
 
 
 def url_to_source_id(url: str) -> str:
@@ -220,6 +304,47 @@ def downgrade_kw(kw: str, level: int) -> str:
 
 
 import urllib.parse
+
+
+async def check_connectivity(crawler) -> dict:
+    """启动时检查网络可达性
+
+    Returns: {proxy_ok, ddg_ok, baidu_ok, local_count, has_fallback}
+    """
+    status = {"proxy_ok": False, "ddg_ok": False, "baidu_ok": False, "local_count": 0, "has_fallback": False}
+
+    # 检查本地信源
+    local_dir = SCRIPT_DIR / "data" / "source_cache" / "local"
+    if local_dir.exists():
+        status["local_count"] = len([f for f in local_dir.iterdir() if f.is_file() and f.suffix not in (".json", ".yml", ".yaml")])
+
+    # 检查本地已翻译信源
+    if REG_INDEX.exists():
+        reg = json.loads(REG_INDEX.read_text())
+        local_translated = [s for s in reg.values() if s.get("source_type") == "local_translated"]
+        if local_translated:
+            status["local_count"] += len(local_translated)
+
+    status["has_fallback"] = status["local_count"] > 0
+
+    # DuckDuckGo
+    try:
+        r = await crawler.arun("https://html.duckduckgo.com/html/?q=test", {"timeout": 10})
+        if r and r.markdown and len(r.markdown) > 100:
+            status["ddg_ok"] = True
+            status["proxy_ok"] = True
+    except Exception:
+        pass
+
+    # 百度
+    try:
+        r = await crawler.arun("https://www.baidu.com/s?wd=test", {"timeout": 8})
+        if r and r.markdown and len(r.markdown) > 100:
+            status["baidu_ok"] = True
+    except Exception:
+        pass
+
+    return status
 
 
 async def search_web(crawler, kw: str, max_results=8) -> list[dict]:
@@ -549,14 +674,10 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
                     existing_urls.add(h["url"])
             print(f"    web: +{len(whits)}")
     else:
-        for level in (0, 2, 3):
-            search_kw = downgrade_kw(kw, level) if level > 0 else kw
-            hits = await search_web(crawler, search_kw)
-            label = f"L{level}" if level > 0 else "L0"
-            print(f"    web({label}): {len(hits)} hits")
-            all_hits.extend(hits)
-            if len(all_hits) >= 3:
-                break
+        # 英文 kw：优先 Wikipedia API（不需要浏览器），其次百度
+        whits = await search_wikipedia(kw)
+        print(f"    wiki: {len(whits)} hits")
+        all_hits.extend(whits)
         if len(all_hits) < 3:
             bhits = await search_baidu(crawler, kw)
             existing_urls = {h["url"] for h in all_hits}
@@ -714,6 +835,7 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
 
 
 async def step2_dispatch(pool: dict, count: int):
+    setup_logging(log_dir=LOGS_DIR)
     crawler = await get_crawler()
 
     all_pending = []
@@ -725,6 +847,8 @@ async def step2_dispatch(pool: dict, count: int):
         all_pending.extend([(series, s) for s in pending])
 
     import random; random.shuffle(all_pending)
+
+    glog.info(f"▶ 阶段二派发: {min(count, len(all_pending))} 张 (pending pool: {len(all_pending)})")
 
     dispatched = 0
     for series_key, seed in all_pending[:count]:
@@ -739,29 +863,34 @@ async def step2_dispatch(pool: dict, count: int):
             seed["status"] = "dispatched"
             dispatched += 1
             if sufficient:
+                glog.info(f"  ✅ {cid} ready | 信源充足")
                 print(f"  ✅ {cid} ready（信源充足）")
             else:
+                glog.info(f"  ⚠️ {cid} ready | 信源不足: {reason[:60]}")
                 print(f"  ⚠️ {cid} ready（信源不足: {reason[:60]}）")
         else:
             policy = get_source_policy(series_key)
             if policy == "required":
                 seed["status"] = "source_failed"
+                glog.warning(f"  ❌ {series_key} source_failed (required)")
                 print(f"  ❌ source_failed")
             else:
                 seed["status"] = "dispatched"
                 dispatched += 1
+                glog.info(f"  ⚠️ {series_key} dispatched (no source, optional)")
                 print(f"  ⚠️ no source but optional, dispatched anyway")
 
         store.write(pool)
 
     q = json.loads(CARDS_FILE.read_text()) if CARDS_FILE.exists() else {"cards": []}
-    statuses = Counter(c["status"] for c in q["cards"])
-    print(f"\n📊 派发: {dispatched}/{count} | 队列: {dict(statuses)}")
+    statuses = dict(Counter(c["status"] for c in q["cards"]))
+    glog.info(f"✓ 阶段二完成: {dispatched}/{count} dispatched | 队列: {statuses}")
+    print(f"\n📊 派发: {dispatched}/{count} | 队列: {statuses}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="LocalLLM-IP-Factory · 阶段一+二：种子生成 + 信源派发 (LLM增强)")
-    parser.add_argument("--target", type=int, default=300, help="种子池 pending 目标数")
+    parser.add_argument("--target", type=int, default=50, help="种子池每系列上限")
     parser.add_argument("--count", type=int, default=10, help="本次派发卡片数")
     args = parser.parse_args()
 

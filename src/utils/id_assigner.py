@@ -1,12 +1,17 @@
 """卡片编号分配器
 
 基于 PROJECT_MAP.md 的编号规则和可扩展区域，自动分配新卡片 ID。
+支持章节升级时间冷却（同一系列的下一个章节必须等至少 1 天）。
 """
+import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Set, List, Dict, Optional
 
-from config.settings import PROJECT_MAP_FILE
+from config.settings import PROJECT_MAP_FILE, DATA_DIR
+
+CHAPTER_DATES_FILE = DATA_DIR / "chapter_dates.json"
 
 
 def parse_project_map() -> tuple:
@@ -84,17 +89,49 @@ class IdAssigner:
         self.used = set(self.map_ids) | existing_ids
         self.existing_ids = existing_ids  # 实际产出的卡片 ID
 
+        # 加载章节首次产出日期
+        self.chapter_dates: dict = {}
+        if CHAPTER_DATES_FILE.exists():
+            self.chapter_dates = json.loads(CHAPTER_DATES_FILE.read_text())
+
+    def _record_chapter_date(self, series: str, chapter: int) -> None:
+        """记录某个系列章节的首次产出日期"""
+        key = f"{series}ch{chapter}"
+        if key not in self.chapter_dates:
+            self.chapter_dates[key] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            CHAPTER_DATES_FILE.write_text(json.dumps(self.chapter_dates, indent=2))
+
+    def _chapter_is_cooled(self, series: str, chapter: int) -> bool:
+        """检查上一章节是否已冷却足够时间（≥1天）
+        
+        对 ch>=2：必须所有前置章节都已冷却，才能启用。
+        例如 ch=4 需要 ch=1,2,3 都已冷却。
+        """
+        if chapter <= 1:
+            return True
+        for c in range(1, chapter):
+            prev_key = f"{series}ch{c}"
+            prev_date = self.chapter_dates.get(prev_key)
+            if not prev_date:
+                return True  # 前置章节未开始 → 可以通过（会走 fallback 创建它）
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            if not (prev_date < today):
+                return False  # 前置章节今天才产出的 → 未冷却
+        return True
+
     def _assign_from_slots(self, series: str) -> Optional[str]:
         """从 PROJECT_MAP 的可扩展区域分配编号"""
         if series not in self.slots:
             return None
         for sl in sorted(self.slots[series],
                          key=lambda s: (s['ch'], s['sec'], s['start'])):
-            # 章节 >= 2 的 slot，只在 chapter 1 已有实际产出卡片时才启用
+            # 章节 >= 2 需要两个条件：
+            # 1. chapter 1 已有实际产出卡片
+            # 2. chapter 1 首次产出时间已过 1 天冷却期
             if sl['ch'] >= 2:
                 prefix_1 = f"{series}1-"
                 chapter_1_exists = any(i.startswith(prefix_1) for i in self.existing_ids)
-                if not chapter_1_exists:
+                if not chapter_1_exists or not self._chapter_is_cooled(series, sl['ch']):
                     continue
             prefix = f"{series}{sl['ch']}-{sl['sec']}-"
             used_in_slot = sorted(
@@ -107,6 +144,7 @@ class IdAssigner:
             cid = f"{prefix}{next_num}"
             if cid not in self.used:
                 self.used.add(cid)
+                self._record_chapter_date(series, sl['ch'])
                 return cid
         return None
 
@@ -128,10 +166,13 @@ class IdAssigner:
             ))
             parts = best.split('-')
             series_code = parts[0][len(series):]
-            cid = f"{series}{series_code}-{int(parts[1])}-{int(parts[2]) + 1}"
+            ch = int(parts[1])
+            cid = f"{series}{series_code}-{ch}-{int(parts[2]) + 1}"
         else:
             # 全新的系列，从 1-1-1 开始
             cid = f"{series}1-1-1"
+            ch = 1
 
         self.used.add(cid)
+        self._record_chapter_date(series, ch)
         return cid

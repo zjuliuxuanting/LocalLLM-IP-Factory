@@ -134,12 +134,20 @@ bash scripts/pipeline_all.sh --target 300 --count 5 --duration 3600
 bash scripts/pipeline_all.sh --target 300 --count 5 --repeat 5 --interval 30
 ```
 
-## 监视面板
+## 监视面板 & 配置界面
+
+`pipeline_all.sh` 会自动启动。如需手动启动：
 
 ```bash
-python3 -m http.server 8899
-# 浏览器打开 http://localhost:8899/output/dashboard.html
+# 启动 Dashboard + 配置 API（端口 8899）
+python3 scripts/config_api.py --port 8899
+
+# 浏览器打开
+#   面板:   http://localhost:8899/output/dashboard.html
+#   配置:   http://localhost:8899/output/config.html
 ```
+
+配置页面支持在线修改 LLM 地址、模型、代理等参数，保存后写入 `config/.env`，下次运行生效。
 
 ## 数据流
 

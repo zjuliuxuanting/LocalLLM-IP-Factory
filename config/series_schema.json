@@ -2,7 +2,7 @@
   "description": "喵言汪语系列定义结构",
   "type": "object",
   "patternProperties": {
-    "^[A-Z]$": {
+    "^[A-Z]\\d*$": {
       "type": "object",
       "required": [
         "name", "topic", "style", "forbidden", "source_policy",

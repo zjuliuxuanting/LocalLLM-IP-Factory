@@ -67,8 +67,12 @@ class Orchestrator:
 
         elapsed = time.monotonic() - t_start
         if ctx.state == CardState.COMPLETE:
-            logger.info(f"✓ {cid} 完成 ({elapsed:.0f}s)")
+            final = ctx.final or ctx.polished or ctx.revised or ctx.draft or ""
+            word_count = len(final) if final else 0
+            logger.info(f"✓ {cid} 完成 · {word_count}字 · {elapsed:.0f}s")
             self._save_card_file(ctx)
+        elif ctx.state == CardState.FAILED:
+            logger.warning(f"✗ {cid} 失败 · {ctx.error}")
         self._update_queue(ctx)
 
     async def _execute_stage(self, ctx: CardContext):
@@ -87,9 +91,16 @@ class Orchestrator:
 
         if next_state in stage_map:
             mod, func = stage_map[next_state]
+
+            # 知识图谱：draft 阶段注入同系列上下文
+            if next_state == CardState.DRAFTING:
+                kg_context = self._build_kg_context(ctx.card_id)
+            else:
+                kg_context = ""
+
             import importlib
             m = importlib.import_module(mod)
-            await getattr(m, func)(ctx)
+            await getattr(m, func)(ctx, context=kg_context)
 
         elif next_state == CardState.COMPLETE:
             ctx.state = CardState.COMPLETE
@@ -112,6 +123,7 @@ class Orchestrator:
         if final_text:
             (CARDS_DIR / f"{ctx.card_id}.md").write_text(final_text, encoding="utf-8")
             ctx.quality_score = 7.0
+            self._update_graph(ctx)
 
     def _update_queue(self, ctx: CardContext):
         store = get_queue_store()
@@ -125,8 +137,36 @@ class Orchestrator:
             return q
         store.update(updater)
 
+    def _update_graph(self, ctx: CardContext):
+        """卡片完成后更新知识图谱：节点 + cites边 + 语义边 + 锚点"""
+        try:
+            from src.knowledge.graph import update_graph
+            update_graph(ctx.card, ctx.card.get("source_files", []))
+
+            final_text = ctx.final or ctx.polished or ctx.revised or ctx.draft or ""
+            if final_text:
+                from src.knowledge.graph import add_semantic_edge
+                from src.knowledge.context import extract_anchors
+                from src.knowledge.graph import add_anchor_node
+                anchors = extract_anchors(final_text)
+                add_anchor_node(ctx.card_id, anchors)
+                add_semantic_edge(ctx.card_id, final_text)
+        except Exception as e:
+            logger.warning(f"  知识图谱更新异常: {e}")
+
+    def _build_kg_context(self, card_id: str) -> str:
+        """为 draft 阶段构建知识图谱注入上下文"""
+        try:
+            from src.knowledge.context import build_injection_context
+            ctx = build_injection_context(card_id)
+            if ctx:
+                logger.info(f"  📚 {card_id} kg上下文: {len(ctx)} chars")
+                return ctx
+        except Exception as e:
+            logger.warning(f"  kg上下文构建异常: {e}")
+        return ""
+
     def _maybe_generate_dashboard(self):
-        """每完成一张卡片更新 dashboard"""
         try:
             import subprocess
             subprocess.run(

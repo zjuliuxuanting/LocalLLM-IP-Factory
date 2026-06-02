@@ -94,27 +94,16 @@ def get_prev_card_text(card_id: str) -> str:
 def build_injection_context(card_id: str) -> str:
     """为卡片生成构建上下文注入文本
 
-    包含：
-    1. 前一张卡的核心论点摘要
-    2. 同系列已建立的知识锚点（避免重复）
+    仅依赖同系列知识锚点（避免内容重复）。
+    next 边缘在随机派发场景下无意义，已移除。
     """
     parts = []
 
-    # 前一张卡
     series = card_id.split("-")[0] if "-" in card_id else card_id
-    prev_text = get_prev_card_text(card_id)
-    if prev_text:
-        anchors = extract_anchors(prev_text, max_anchors=2)
-        summary = " ".join(anchors) if anchors else prev_text[:200]
-        parts.append(f"前一张卡的核心内容: {summary}")
-        parts.append("注意: 不要重复讲述前一张卡已覆盖的内容，保持逻辑递进。")
-
-    # 同系列锚点
     series_anchors = get_series_anchors(series, card_id)
     if series_anchors:
-        parts.append(f"\n本系列已建立的知识基础:")
+        parts.append(f"本系列已建立的知识基础（来自其他卡片，请贡献新知识不要重复）:")
         for a in series_anchors[-10:]:
             parts.append(f"  - {a}")
-        parts.append("请贡献新的知识，不要重复以上内容。")
 
     return "\n".join(parts)

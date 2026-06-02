@@ -7,30 +7,37 @@ from src.pipeline.card_state import CardContext
 from src.models.gateway import call_xianka, clean_response
 from src.models.prompts.review import build_review_prompt
 from src.quality.gate import gate
-from src.utils.logging import get_logger
+from src.utils.logging import get_logger, log_stage_start, log_stage_done
 
 logger = get_logger("review")
 
 
 async def execute(ctx: CardContext) -> CardContext:
+    import time; t0 = time.time()
+    log_stage_start(ctx.card_id, "S4自审")
+
     prompt = build_review_prompt(ctx.card, ctx.draft, ctx.source_text)
     raw = call_xianka(prompt, max_tokens=2048, temperature=0.3, structured=True)
 
     if raw is None:
-        # 自审调用失败不阻断，用空 review 继续
+        logger.info(f"  🔍 {ctx.card_id}: 自审调用失败，跳过")
         ctx.review_result = {"review": {"factual_issues": [], "style_issues": [],
                                          "coherence_issues": [], "verdict": "warn",
                                          "revision_priority": ["检查事实准确性"]}}
         return ctx
 
-    if isinstance(raw, dict):
-        review = raw
-    else:
+    if not isinstance(raw, dict):
         ctx.review_result = {"review": {"factual_issues": [], "style_issues": [],
                                          "coherence_issues": [], "verdict": "warn"}}
         return ctx
 
-    # 无论自审判定如何，都继续推进到 S5 修订
-    # S5 会利用 review 中的 issues 来修改
-    ctx.review_result = review
+    review = raw.get("review", raw)
+    f_issues = len(review.get("factual_issues", []))
+    s_issues = len(review.get("style_issues", []))
+    c_issues = len(review.get("coherence_issues", []))
+    verdict = review.get("verdict", "?")
+    logger.info(f"  🔍 {ctx.card_id}: 自审 {verdict} | 事实{f_issues} 风格{s_issues} 连贯{c_issues}")
+
+    ctx.review_result = raw
+    log_stage_done(ctx.card_id, "S4自审", time.time() - t0)
     return ctx

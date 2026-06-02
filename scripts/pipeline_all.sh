@@ -2,18 +2,30 @@
 # LocalLLM-IP-Factory · 一体化全流程
 # 本地运行，不需要 NAS。
 # 用法:
-#   单次运行: bash scripts/pipeline_all.sh --target 300 --count 10
-#   循环运行: bash scripts/pipeline_all.sh --target 300 --count 5 --repeat 3
-#   定时运行: bash scripts/pipeline_all.sh --target 300 --count 5 --duration 3600
+#   单次运行: bash scripts/pipeline_all.sh --target 50 --count 5
+#   循环运行: bash scripts/pipeline_all.sh --target 50 --count 3 --repeat 3
+#   定时运行: bash scripts/pipeline_all.sh --target 50 --count 3 --duration 3600
 # 用法:
-#   单次运行: bash scripts/pipeline_all.sh --target 300 --count 10
-#   循环运行: bash scripts/pipeline_all.sh --target 300 --count 5 --repeat 3
-#   定时运行: bash scripts/pipeline_all.sh --target 300 --count 5 --duration 3600
+#   单次运行: bash scripts/pipeline_all.sh --target 50 --count 5
+#   循环运行: bash scripts/pipeline_all.sh --target 50 --count 3 --repeat 3
+#   定时运行: bash scripts/pipeline_all.sh --target 50 --count 3 --duration 3600
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
-TARGET=300
+# ── PID 锁：防止多个实例同时运行 ──
+PIDFILE="/tmp/pipeline_all.pid"
+if [ -f "$PIDFILE" ]; then
+    OLD_PID=$(cat "$PIDFILE")
+    if kill -0 "$OLD_PID" 2>/dev/null; then
+        echo "❌ 已有 pipeline 实例在运行 (PID=$OLD_PID)，退出。"
+        exit 1
+    fi
+fi
+echo $$ > "$PIDFILE"
+trap "rm -f $PIDFILE" EXIT
+
+TARGET=50
 COUNT=10
 DAEMON=false
 REPEAT=0
@@ -28,7 +40,7 @@ while [[ $# -gt 0 ]]; do
         --duration) DURATION="$2"; shift 2 ;;
         --interval) INTERVAL="$2"; shift 2 ;;
         --daemon)   DAEMON=true;   shift ;;
-        *) echo "用法: $0 [--target 300] [--count 10] [--repeat N] [--duration SEC] [--interval SEC] [--daemon]"; exit 1 ;;
+        *) echo "用法: $0 [--target 50] [--count 5] [--repeat N] [--duration SEC] [--interval SEC] [--daemon]"; exit 1 ;;
     esac
 done
 
@@ -57,9 +69,10 @@ if [ -f config/.env ]; then
     set -a; source config/.env; set +a
 fi
 
-# ── dashboard ──
+# ── dashboard + 配置 API ──
 if ! lsof -i :8899 >/dev/null 2>&1; then
-    $PYTHON -m http.server 8899 > /dev/null 2>&1 &
+    $PYTHON scripts/config_api.py > /dev/null 2>&1 &
+    echo "📡 Dashboard + 配置 API 已启动 (端口 8899)"
 fi
 
 # ── 系列定义自动生成 ──
@@ -70,29 +83,101 @@ if $PYTHON -c "from config.series_definitions import all_series_keys; exit(0 if 
 fi
 
 # ═══════════════════════════════════════
-# 第零步：本地信源翻译（只跑一次）
+# 第零步：本地信源翻译（检测新文件 + 已修改文件）
 # ═══════════════════════════════════════
 LOCAL_DIR="data/source_cache/local"
 if [ -d "$LOCAL_DIR" ] && [ -n "$(ls -A "$LOCAL_DIR" 2>/dev/null)" ]; then
-    NEW_COUNT=$($PYTHON -c "
-import json, hashlib, pathlib
-f = pathlib.Path('data/source_registry/index.json')
-reg = json.loads(open(f).read()) if f.exists() else {}
-tracked = set()
-for v in reg.values():
-    if v.get('source_type') == 'local_translated' and v.get('original_file'):
-        tracked.add(str(pathlib.Path(v['original_file']).resolve()))
-local = pathlib.Path('$LOCAL_DIR')
-untracked = [p.name for p in local.iterdir() if p.is_file() and str(p.resolve()) not in tracked]
-print(len(untracked))
-" 2>/dev/null || echo "0")
-    if [ "$NEW_COUNT" -gt 0 ]; then
+    NEED_TRANSLATE=$($PYTHON scripts/check_local_files.py 2>/dev/null)
+    NEED_COUNT=$(echo "$NEED_TRANSLATE" | grep -c '^' 2>/dev/null || echo "0")
+    if [ -n "$NEED_TRANSLATE" ]; then
         echo ""
-        echo "📁 第零步：本地信源翻译 ($NEW_COUNT 个新文档)"
+        echo "📁 第零步：本地信源翻译"
         echo "-------------------------------------"
+        echo "$NEED_TRANSLATE"
+        echo ""
         $PYTHON scripts/translate_sources.py
     fi
 fi
+
+# ═══════════════════════════════════════
+# 网络预检：搜索引擎真实可用性（LLM 判断 + 仅一次）
+# ═══════════════════════════════════════
+echo ""
+echo "🌐 网络预检..."
+NET_STATUS=$($PYTHON << 'PYEOF'
+import asyncio, json, pathlib, re, sys
+
+SCRIPT_DIR = pathlib.Path(__file__).resolve().parent.parent if '__file__' in dir() else pathlib.Path.cwd()
+sys.path.insert(0, str(SCRIPT_DIR))
+
+status = {'proxy_ok': False, 'ddg_ok': False, 'baidu_ok': False, 'local_count': 0, 'ddg_detail': '', 'baidu_detail': ''}
+
+# 本地信源
+local_dir = pathlib.Path('data/source_cache/local')
+if local_dir.exists():
+    status['local_count'] = len([f for f in local_dir.iterdir() if f.is_file() and f.suffix not in ('.json','.yml','.yaml')])
+reg_file = pathlib.Path('data/source_registry/index.json')
+if reg_file.exists():
+    reg = json.loads(open(reg_file).read())
+    status['local_count'] += len([s for s in reg.values() if s.get('source_type') == 'local_translated'])
+
+VERIFY_PROMPT = """判断以下网页内容是否是一个真实的搜索引擎结果页面（包含搜索结果链接），还是一个验证码/拦截/错误页面。
+
+只回答一个词: REAL 或 FAKE
+
+网页片段:
+{content}"""
+
+async def check_engine(name: str, url: str, proxy_ok: bool = False):
+    try:
+        from crawl4ai import AsyncWebCrawler
+        async with AsyncWebCrawler() as crawler:
+            r = await crawler.arun(url)
+            if not r or not r.markdown:
+                return False, "", proxy_ok
+            text = r.markdown[:3000]
+            urls = re.findall(r'https?://[^\s)\]">]+', text)
+            real_urls = [u for u in urls if not any(s in u for s in ('duckduckgo.com','baidu.com','google.com','bing.com'))]
+            
+            if len(real_urls) >= 3:
+                # 用 LLM 确认不是验证码
+                try:
+                    from src.models.gateway import call_xianka
+                    result = call_xianka(VERIFY_PROMPT.format(content=text[:2000]), max_tokens=10, temperature=0.1)
+                    if result and 'FAKE' in result.upper():
+                        return False, f"LLM判断为假页面", proxy_ok
+                except: pass
+                return True, f"{len(real_urls)} 个真实URL", True
+            
+            return False, f"仅 {len(real_urls)} 个URL", proxy_ok
+    except Exception as e:
+        return False, str(e)[:80], proxy_ok
+
+async def main():
+    ddg_ok, ddg_detail, proxy_ok = await check_engine('ddg', 'https://html.duckduckgo.com/html/?q=Python+programming+language')
+    status['ddg_ok'] = ddg_ok
+    status['proxy_ok'] = proxy_ok
+    status['ddg_detail'] = ddg_detail
+    
+    baidu_ok, baidu_detail, _ = await check_engine('baidu', 'https://www.baidu.com/s?wd=Python编程语言')
+    status['baidu_ok'] = baidu_ok
+    status['baidu_detail'] = baidu_detail
+
+asyncio.run(main())
+print(json.dumps(status, ensure_ascii=False))
+PYEOF
+)
+
+DDG_OK=$(echo "$NET_STATUS" | $PYTHON -c "import json,sys; print(json.loads(sys.stdin.read()).get('ddg_ok', False))" 2>/dev/null || echo "False")
+BAIDU_OK=$(echo "$NET_STATUS" | $PYTHON -c "import json,sys; print(json.loads(sys.stdin.read()).get('baidu_ok', False))" 2>/dev/null || echo "False")
+LOCAL_N=$(echo "$NET_STATUS" | $PYTHON -c "import json,sys; print(json.loads(sys.stdin.read()).get('local_count', 0))" 2>/dev/null || echo "0")
+DDG_DETAIL=$(echo "$NET_STATUS" | $PYTHON -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('ddg_detail','') or d.get('baidu_detail',''))" 2>/dev/null || echo "")
+
+echo "  DuckDuckGo: $([ "$DDG_OK" = "True" ] && echo '✅ 可达' || echo "❌ 不通 ($DDG_DETAIL)")"
+echo "  百度:       $([ "$BAIDU_OK" = "True" ] && echo '✅ 可达' || echo "❌ 不通")"
+echo "  本地信源:   $LOCAL_N 个"
+
+echo "$NET_STATUS" > data/.network_status.json
 
 # 循环或单次执行
 # ── 注意：set -e 已移除，因为 generate_and_dispatch.py 退出时 asyncio 清理
