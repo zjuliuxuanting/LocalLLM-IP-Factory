@@ -692,21 +692,21 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
     # ═════ 本地信源优先检查（通过注册中心关键词匹配）═════
     if REG_INDEX.exists():
         reg = json.loads(REG_INDEX.read_text())
-        kw_words = set(kw.lower().split())
+        kw_words = {w for w in kw.lower().split() if len(w) >= 3 and w not in STOP_WORDS}
         local_sources = [
             s for s in reg.values()
             if s.get("source_type") == "local_translated"
             and s.get("cache_path") and rel_to_abs(s["cache_path"]).exists()
         ]
         for src in local_sources:
-            src_kws = set(k.lower() for k in src.get("keywords", []))
-            matched_kws = kw_words & src_kws
-            if not matched_kws:
-                for src_kw in src_kws:
-                    if any(w in src_kw or src_kw in w for w in kw_words):
-                        matched_kws = {src_kw}
-                        break
-            if matched_kws:
+            src_kws = {k.lower() for k in src.get("keywords", []) if len(k) >= 3}
+            matched = kw_words & src_kws
+            # Jaccard 相似度 ≥ 0.25 才接受
+            union = kw_words | src_kws
+            score = len(matched) / len(union) if union else 0
+            if score < 0.25:
+                continue
+            if matched:
                 try:
                     content = rel_to_abs(src["cache_path"]).read_text(encoding="utf-8", errors="ignore")[:12000]
                 except Exception:
@@ -790,10 +790,15 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
             else:
                 ts_print(f"    ⏭️ DDG 不可达（预检），跳过")
     else:
-        # 英文 kw + web 引擎：优先 Wikipedia API，其次百度
-        whits = await search_wikipedia(kw)
-        ts_print(f"    wiki: {len(whits)} hits")
-        all_hits.extend(whits)
+        # 英文 kw + web 引擎：优先 Wikipedia API，其次百度，最后降级 kw 重试
+        for level in (0, 2):
+            search_kw = downgrade_kw(kw, level) if level > 0 else kw
+            label = "L0" if level == 0 else f"L{level}"
+            whits = await search_wikipedia(search_kw)
+            ts_print(f"    wiki({label}): {len(whits)} hits")
+            all_hits.extend(whits)
+            if len(all_hits) >= 3:
+                break
         if len(all_hits) < 3:
             if net_status.get("baidu_ok", True):
                 bhits = await search_baidu(crawler, kw)
@@ -1011,22 +1016,24 @@ async def step2_dispatch(pool: dict, count: int):
         result = await dispatch_one(crawler, seed, series_key, pool, net_status)
         if result:
             cid, sufficient, reason = result
-            seed["status"] = "dispatched"
-            dispatched += 1
-            if sufficient:
-                glog.info(f"  ✅ {cid} ready | 信源充足")
-                ts_print(f"  ✅ {cid} ready（信源充足）")
-            else:
-                glog.info(f"  ⚠️ {cid} ready | 信源不足: {reason[:60]}")
-                ts_print(f"  ⚠️ {cid} ready（信源不足: {reason[:60]}）")
-        else:
             policy = get_source_policy(series_key)
-            if policy == "required":
+            if not sufficient and policy == "required":
                 seed["status"] = "source_failed"
-                glog.warning(f"  ❌ {series_key} source_failed (required)")
-                ts_print(f"  ❌ source_failed")
+                glog.warning(f"  ❌ {cid} source_failed: {reason[:60]}")
+                ts_print(f"  ❌ source_failed — {reason[:60]}")
             else:
                 seed["status"] = "dispatched"
+                dispatched += 1
+                if sufficient:
+                    glog.info(f"  ✅ {cid} ready | 信源充足")
+                    ts_print(f"  ✅ {cid} ready（信源充足）")
+                else:
+                    glog.info(f"  ⚠️ {cid} ready | 信源不足: {reason[:60]}")
+                    ts_print(f"  ⚠️ {cid} ready（信源不足: {reason[:60]}）")
+        else:
+            seed["status"] = "source_failed"
+            glog.warning(f"  ❌ {series_key} source_failed (无信源)")
+            ts_print(f"  ❌ source_failed")
                 dispatched += 1
                 glog.info(f"  ⚠️ {series_key} dispatched (no source, optional)")
                 ts_print(f"  ⚠️ no source but optional, dispatched anyway")
