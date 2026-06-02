@@ -13,7 +13,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from crawl4ai import AsyncWebCrawler
+from crawl4ai import AsyncWebCrawler, BrowserConfig
 from crawl4ai.async_configs import LLMConfig
 
 from src.models.gateway import call_xianka
@@ -98,7 +98,7 @@ _crawler_instance = None
 async def get_crawler():
     global _crawler_instance
     if _crawler_instance is None:
-        _crawler_instance = AsyncWebCrawler(proxy=PROXY)
+        _crawler_instance = AsyncWebCrawler(config=BrowserConfig(proxy=PROXY))
         await _crawler_instance.start()
     return _crawler_instance
 
@@ -893,7 +893,7 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
     ts_print(f"    📄 抓取 {len(raw_sources)} 个页面，LLM 排序中...")
     ranked = llm_rank_sources(goal, raw_sources)
 
-    ranked = [r for r in ranked if r.get("relevance", 0) >= 4]
+    ranked = [r for r in ranked if r.get("relevance", 0) >= 2]
     if not ranked:
         ts_print(f"    ❌ LLM 过滤后无有效信源")
         return None
