@@ -171,14 +171,12 @@ def step1_generate_seeds(pool: dict, target: int, engine_status=None):
             data = pool[current_key]
         seeds = data.get("seeds", [])
         pending_count = sum(1 for s in seeds if s.get("status") == "pending")
-        dead_count = sum(1 for s in seeds if s.get("status") in ("source_failed", "failed"))
-        active_total = len(seeds) - dead_count
         per_series = target // len(base_keys)
-        # 硬上限：active 种子 ≥ per_series 则不再补种（排除 source_failed）
-        if active_total >= per_series:
+        needed = max(0, per_series - pending_count)
+        if needed <= 0:
             continue
-        needed = min(per_series - active_total, 10)
-        ts_print(f"  🌱 {current_key}: {active_total} active (dead={dead_count}, pending={pending_count}), 需补 {needed} 个")
+        needed = min(needed, 10)
+        ts_print(f"  🌱 {current_key}: {pending_count} pending, 需补 {needed} 个")
         _generate_seeds_for(current_key, pool, needed, series_key, engine_status)
         # 首次生成种子记冷却（初始代 = 1 冷却）
         cooling_key = f"{series_key}ch"
