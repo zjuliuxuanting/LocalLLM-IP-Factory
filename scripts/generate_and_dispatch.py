@@ -13,7 +13,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from crawl4ai import AsyncWebCrawler, BrowserConfig
+from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
 from crawl4ai.async_configs import LLMConfig
 
 from src.models.gateway import call_xianka
@@ -33,10 +33,13 @@ from config.settings import LOGS_DIR
 
 glog = get_logger("dispatch")
 
-# ── 代理 opener：PubMed/arXiv/Wikipedia API 走代理 ──
+# ── 代理 opener（仅外部 API 调用使用，不覆盖全局）──
 import urllib.request as _ur
-_proxy_handler = _ur.ProxyHandler({"http": PROXY, "https": PROXY}) if PROXY else _ur.ProxyHandler()
-_ur.install_opener(_ur.build_opener(_proxy_handler))
+def _proxy_urlopen(url, timeout=15):
+    """urllib.urlopen 走代理版本"""
+    handler = _ur.ProxyHandler({"http": PROXY, "https": PROXY}) if PROXY else _ur.ProxyHandler()
+    opener = _ur.build_opener(handler)
+    return opener.open(url, timeout=timeout)
 
 SHARED = SCRIPT_DIR / "data" / "source_cache" / "shared"
 REG_INDEX = SCRIPT_DIR / "data" / "source_registry" / "index.json"
@@ -315,7 +318,7 @@ async def check_connectivity(crawler) -> dict:
     # DuckDuckGo（硬测试：抓到 >200 字就算通）
     ts_print("  ⏳ DuckDuckGo...")
     try:
-        r = await crawler.arun("https://html.duckduckgo.com/html/?q=dog+communication", {"timeout": 15})
+        r = await crawler.arun("https://html.duckduckgo.com/html/?q=dog+communication", CrawlerRunConfig(page_timeout=30000))
         if r and r.markdown and len(r.markdown) > 200:
             status["ddg_ok"] = True
             ts_print("    ✓")
@@ -327,7 +330,7 @@ async def check_connectivity(crawler) -> dict:
     # 百度（硬测试：抓到 >200 字就算通）
     ts_print("  ⏳ 百度...")
     try:
-        r = await crawler.arun("https://www.baidu.com/s?wd=狗沟通按钮", {"timeout": 15})
+        r = await crawler.arun("https://www.baidu.com/s?wd=狗沟通按钮", CrawlerRunConfig(page_timeout=30000))
         if r and r.markdown and len(r.markdown) > 200:
             status["baidu_ok"] = True
             ts_print("    ✓")
@@ -496,8 +499,8 @@ async def search_wikipedia(kw: str, max_results=6) -> list[dict]:
     url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={query}&format=json&srlimit={max_results}"
     for attempt in range(3):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with _proxy_urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read())
             hits = []
             for r in data.get("query", {}).get("search", []):
@@ -556,8 +559,8 @@ async def fetch_page_http(url: str) -> tuple[str, str]:
     import urllib.request as _ur2, time as _time
     for attempt in range(3):
         try:
-            req = _ur2.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; LocalLLM/3.0)"})
-            resp = _ur2.urlopen(req, timeout=15)
+            req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; LocalLLM/3.0)"})
+            resp = _proxy_urlopen(req, timeout=15)
             html = resp.read().decode("utf-8", errors="replace")
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(html, "html.parser")
