@@ -1,6 +1,6 @@
 [project]
 name = "local-llm-ip-factory"
-version = "3.0.1"
+version = "3.0.2"
 description = "自动化内容创作流水线 — 为垂直领域配套的科普/IP内容矩阵"
 requires-python = ">=3.11"
 dependencies = [
