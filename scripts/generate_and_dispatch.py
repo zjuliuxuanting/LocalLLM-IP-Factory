@@ -1034,9 +1034,6 @@ async def step2_dispatch(pool: dict, count: int):
             seed["status"] = "source_failed"
             glog.warning(f"  ❌ {series_key} source_failed (无信源)")
             ts_print(f"  ❌ source_failed")
-                dispatched += 1
-                glog.info(f"  ⚠️ {series_key} dispatched (no source, optional)")
-                ts_print(f"  ⚠️ no source but optional, dispatched anyway")
 
         store.write(pool)
 
