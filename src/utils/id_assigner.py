@@ -155,9 +155,9 @@ class IdAssigner:
         if result:
             return result
 
-        # 没有可扩展区域 → 找已有 3 段 ID 自动递增
+        # 没有可扩展区域 → 找真实队列中已有的 3 段 ID 自动递增（不认文件里的预测）
         existing = sorted(
-            i for i in self.used
+            i for i in self.existing_ids
             if i.startswith(series) and len(i.split('-')) == 3
         )
         if existing:
