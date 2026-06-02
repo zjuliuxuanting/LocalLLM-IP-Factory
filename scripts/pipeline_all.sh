@@ -19,7 +19,8 @@ if [ -f "$PIDFILE" ]; then
     fi
 fi
 echo $$ > "$PIDFILE"
-trap "rm -f $PIDFILE" EXIT
+_cleanup() { rm -f "$PIDFILE"; kill $TAIL_PID 2>/dev/null; }
+trap _cleanup EXIT INT TERM
 
 TARGET=50
 COUNT=10
