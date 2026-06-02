@@ -28,10 +28,15 @@ from config.settings import (
     MAX_TOKENS, TEMPERATURE, path_to_rel, rel_to_abs,
 )
 from src.pipeline.series_expansion import run_expansion_check
-from src.utils.logging import get_logger, setup as setup_logging
+from src.utils.logging import get_logger, ts_print, setup as setup_logging
 from config.settings import LOGS_DIR
 
 glog = get_logger("dispatch")
+
+# ── 代理 opener：PubMed/arXiv/Wikipedia API 走代理 ──
+import urllib.request as _ur
+_proxy_handler = _ur.ProxyHandler({"http": PROXY, "https": PROXY}) if PROXY else _ur.ProxyHandler()
+_ur.install_opener(_ur.build_opener(_proxy_handler))
 
 SHARED = SCRIPT_DIR / "data" / "source_cache" / "shared"
 REG_INDEX = SCRIPT_DIR / "data" / "source_registry" / "index.json"
@@ -109,7 +114,7 @@ def step0_series_expansion(pool: dict):
     result = run_expansion_check(pool, auto_generate=True)
     if result.get("proposal"):
         p = result["proposal"]
-        print(f"  🆕 新系列提案: {p['code']} {p['name']} (验证分 {p['validation']['score']}/10)")
+        ts_print(f"  🆕 新系列提案: {p['code']} {p['name']} (验证分 {p['validation']['score']}/10)")
     return pool
 
 
@@ -129,7 +134,7 @@ def step0b_recycle_dead(pool: dict, max_retries: int = 2):
                     recycled += 1
     if recycled:
         store.write(pool)
-        print(f"  ♻️  回收 {recycled} 个 source_failed → pending (max_retries={max_retries})")
+        ts_print(f"  ♻️  回收 {recycled} 个 source_failed → pending (max_retries={max_retries})")
 
 
 def step1_generate_seeds(pool: dict, target: int, engine_status=None):
@@ -173,7 +178,7 @@ def step1_generate_seeds(pool: dict, target: int, engine_status=None):
         if active_total >= per_series:
             continue
         needed = min(per_series - active_total, 10)
-        print(f"  🌱 {current_key}: {active_total} active (dead={dead_count}, pending={pending_count}), 需补 {needed} 个")
+        ts_print(f"  🌱 {current_key}: {active_total} active (dead={dead_count}, pending={pending_count}), 需补 {needed} 个")
         _generate_seeds_for(current_key, pool, needed, series_key, engine_status)
         # 首次生成种子记冷却（初始代 = 1 冷却）
         cooling_key = f"{series_key}ch"
@@ -205,7 +210,7 @@ def step1_generate_seeds(pool: dict, target: int, engine_status=None):
             if num.isdigit() and int(num) >= next_ch:
                 next_ch = int(num) + 1
         new_key = f"{base_key}{next_ch}"
-        print(f"  🔄 {base_key} 种子耗尽 → 生成 {new_key} 种子")
+        ts_print(f"  🔄 {base_key} 种子耗尽 → 生成 {new_key} 种子")
         pool[new_key] = {
             "topic": pool[base_key].get("topic", ""),
             "style": pool[base_key].get("style", ""),
@@ -255,27 +260,27 @@ def _generate_seeds_for(pool_key: str, pool: dict, needed: int, series_key: str,
     )
     raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
     if not raw:
-        print(f"    ⚠️ LLM调用失败，重试...")
+        ts_print(f"    ⚠️ LLM调用失败，重试...")
         raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
     if not raw:
-        print(f"    ❌ LLM调用失败，跳过 {pool_key}")
+        ts_print(f"    ❌ LLM调用失败，跳过 {pool_key}")
         return
     m = re.search(r'\[[\s\S]*\]', raw)
     if not m:
-        print(f"    ⚠️ 返回无 JSON 数组，回退提取 JSON 对象...")
+        ts_print(f"    ⚠️ 返回无 JSON 数组，回退提取 JSON 对象...")
         m = re.search(r'\{[\s\S]*\}', raw)
     if not m:
-        print(f"    ❌ 无法从返回中提取任何 JSON，跳过 {pool_key}")
+        ts_print(f"    ❌ 无法从返回中提取任何 JSON，跳过 {pool_key}")
         return
     try:
         candidates = json.loads(m.group())
         if isinstance(candidates, dict):
             candidates = [candidates]
     except json.JSONDecodeError:
-        print(f"    ❌ JSON 解析失败，跳过 {pool_key}")
+        ts_print(f"    ❌ JSON 解析失败，跳过 {pool_key}")
         return
     if not isinstance(candidates, list):
-        print(f"    ⚠️ 返回非数组 JSON，跳过")
+        ts_print(f"    ⚠️ 返回非数组 JSON，跳过")
         return
     accepted = 0
     for seed in candidates:
@@ -288,7 +293,7 @@ def _generate_seeds_for(pool_key: str, pool: dict, needed: int, series_key: str,
                 accepted += 1
     pool[pool_key]["seeds"] = seeds
     store.write(pool)
-    print(f"    ✅ +{accepted} 种子")
+    ts_print(f"    ✅ +{accepted} 种子")
 
 
 def url_to_source_id(url: str) -> str:
@@ -374,56 +379,29 @@ async def check_connectivity(crawler) -> dict:
             status["local_count"] += len(local_translated)
     status["has_fallback"] = status["local_count"] > 0
 
-    # ── LLM 验证函数 ──
-    def _llm_validate(label: str, markdown: str, query: str) -> bool:
-        """请 LLM 判断抓取内容是否为有效搜索结果页"""
-        sample = markdown[:2000]
-        prompt = f"""你是一个搜索引擎质量审核员。以下是用 "{query}" 搜索 {label} 返回的页面内容（前 2000 字）。
-请判断这**是否是真实的搜索结果页**，而不是错误页、验证码、纯图片页或无结果的空壳。
-
-判断标准：
-- ✅ 真实搜索结果：包含多条相关链接、标题、摘要或正文片段
-- ❌ 无效：验证码页面、纯导航/广告、纯图片链接（无文字摘要）、空白/错误提示、或与搜索词完全无关的系统页面
-
-只回答一个字：真 或 假。不要解释。"""
-
-        try:
-            raw = call_xianka(prompt + f"\n\n---\n{sample}", max_tokens=16, temperature=0.1)
-            if raw and "真" in raw and "假" not in raw:
-                return True
-        except Exception:
-            pass
-        return False
-
-    # DuckDuckGo
-    print("  ⏳ DuckDuckGo...")
+    # DuckDuckGo（硬测试：抓到 >200 字就算通）
+    ts_print("  ⏳ DuckDuckGo...")
     try:
-        r = await crawler.arun("https://html.duckduckgo.com/html/?q=dog+communication", {"timeout": 12})
-        if r and r.markdown and len(r.markdown) > 100:
-            if _llm_validate("DuckDuckGo", r.markdown, "dog communication"):
-                status["ddg_ok"] = True
-                print("    ✓")
-            else:
-                print("    ✗ LLM 判定无效（图片页/验证码/空壳）")
+        r = await crawler.arun("https://html.duckduckgo.com/html/?q=dog+communication", {"timeout": 15})
+        if r and r.markdown and len(r.markdown) > 200:
+            status["ddg_ok"] = True
+            ts_print("    ✓")
         else:
-            print("    ✗ 硬测试失败")
+            ts_print("    ✗ 硬测试失败（内容不足）")
     except Exception as e:
-        print(f"    ✗ {type(e).__name__}")
+        ts_print(f"    ✗ {type(e).__name__}")
 
-    # 百度
-    print("  ⏳ 百度...")
+    # 百度（硬测试：抓到 >200 字就算通）
+    ts_print("  ⏳ 百度...")
     try:
-        r = await crawler.arun("https://www.baidu.com/s?wd=狗沟通按钮", {"timeout": 10})
-        if r and r.markdown and len(r.markdown) > 100:
-            if _llm_validate("百度", r.markdown, "狗沟通按钮"):
-                status["baidu_ok"] = True
-                print("    ✓")
-            else:
-                print("    ✗ LLM 判定无效（图片页/验证码/空壳）")
+        r = await crawler.arun("https://www.baidu.com/s?wd=狗沟通按钮", {"timeout": 15})
+        if r and r.markdown and len(r.markdown) > 200:
+            status["baidu_ok"] = True
+            ts_print("    ✓")
         else:
-            print("    ✗ 硬测试失败")
+            ts_print("    ✗ 硬测试失败（内容不足）")
     except Exception as e:
-        print(f"    ✗ {type(e).__name__}")
+        ts_print(f"    ✗ {type(e).__name__}")
 
     return status
 
@@ -778,7 +756,7 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
                     "source_label": "本地信源",
                     "_is_local": True,
                 })
-                print(f"    📁 本地信源匹配: {src.get('title', '')} (kw: {', '.join(matched_kws)})")
+                ts_print(f"    📁 本地信源匹配: {src.get('title', '')} (kw: {', '.join(matched_kws)})")
                 if len(all_hits) >= 1:
                     break
     # ═════ 本地信源结束 ═════
@@ -789,9 +767,9 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
 
     # ── 引擎路由：按 seed.engine 选择搜索后端 ──
     if engine == "pubmed":
-        print(f"    🔬 PubMed 引擎")
+        ts_print(f"    🔬 PubMed 引擎")
         hits = await search_pubmed(kw)
-        print(f"    pubmed: {len(hits)} hits")
+        ts_print(f"    pubmed: {len(hits)} hits")
         for h in hits:
             h["_is_prefetched"] = True  # 已含摘要，跳过 crawl
         all_hits.extend(hits)
@@ -799,41 +777,41 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
         if len(all_hits) < 3:
             if net_status.get("baidu_ok", True):
                 bhits = await search_baidu(crawler, kw)
-                print(f"    baidu(兜底): +{len(bhits)}")
+                ts_print(f"    baidu(兜底): +{len(bhits)}")
                 all_hits.extend(bhits)
     elif engine == "arxiv":
-        print(f"    📄 arXiv 引擎")
+        ts_print(f"    📄 arXiv 引擎")
         hits = await search_arxiv(kw)
-        print(f"    arxiv: {len(hits)} hits")
+        ts_print(f"    arxiv: {len(hits)} hits")
         all_hits.extend(hits)
         if len(all_hits) < 3:
             if net_status.get("baidu_ok", True):
                 bhits = await search_baidu(crawler, kw)
-                print(f"    baidu(兜底): +{len(bhits)}")
+                ts_print(f"    baidu(兜底): +{len(bhits)}")
                 all_hits.extend(bhits)
     elif engine == "patent":
-        print(f"    📜 Patent 引擎")
+        ts_print(f"    📜 Patent 引擎")
         hits = await search_patents(crawler, kw)
-        print(f"    patent: {len(hits)} hits")
+        ts_print(f"    patent: {len(hits)} hits")
         all_hits.extend(hits)
         if len(all_hits) < 3:
             if net_status.get("baidu_ok", True):
                 bhits = await search_baidu(crawler, kw)
-                print(f"    baidu(兜底): +{len(bhits)}")
+                ts_print(f"    baidu(兜底): +{len(bhits)}")
                 all_hits.extend(bhits)
     elif has_cn:
         if net_status.get("baidu_ok", True):
-            print(f"    🌏 中文 kw，优先百度")
+            ts_print(f"    🌏 中文 kw，优先百度")
             for level in (0, 2, 3):
                 search_kw = downgrade_kw(kw, level) if level > 0 else kw
                 hits = await search_baidu(crawler, search_kw)
                 label = f"L{level}" if level > 0 else "L0"
-                print(f"    baidu({label}): {len(hits)} hits")
+                ts_print(f"    baidu({label}): {len(hits)} hits")
                 all_hits.extend(hits)
                 if len(all_hits) >= 3:
                     break
         else:
-            print(f"    ⏭️ 百度不可达（预检），跳过")
+            ts_print(f"    ⏭️ 百度不可达（预检），跳过")
         if len(all_hits) < 3:
             if net_status.get("ddg_ok", True):
                 whits = await search_web(crawler, kw)
@@ -842,13 +820,13 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
                     if h["url"] not in existing_urls:
                         all_hits.append(h)
                         existing_urls.add(h["url"])
-                print(f"    web: +{len(whits)}")
+                ts_print(f"    web: +{len(whits)}")
             else:
-                print(f"    ⏭️ DDG 不可达（预检），跳过")
+                ts_print(f"    ⏭️ DDG 不可达（预检），跳过")
     else:
         # 英文 kw + web 引擎：优先 Wikipedia API，其次百度
         whits = await search_wikipedia(kw)
-        print(f"    wiki: {len(whits)} hits")
+        ts_print(f"    wiki: {len(whits)} hits")
         all_hits.extend(whits)
         if len(all_hits) < 3:
             if net_status.get("baidu_ok", True):
@@ -858,12 +836,12 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
                     if h["url"] not in existing_urls:
                         all_hits.append(h)
                         existing_urls.add(h["url"])
-                print(f"    baidu: +{len(bhits)}")
+                ts_print(f"    baidu: +{len(bhits)}")
             else:
-                print(f"    ⏭️ 百度不可达（预检），跳过")
+                ts_print(f"    ⏭️ 百度不可达（预检），跳过")
 
     if not all_hits:
-        print(f"    ❌ 0 信源")
+        ts_print(f"    ❌ 0 信源")
         return None
 
     # 按白名单优先级排序（高优先级的先抓取）
@@ -909,21 +887,21 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
         })
 
     if not raw_sources:
-        print(f"    ❌ 抓取全失败")
+        ts_print(f"    ❌ 抓取全失败")
         return None
 
-    print(f"    📄 抓取 {len(raw_sources)} 个页面，LLM 排序中...")
+    ts_print(f"    📄 抓取 {len(raw_sources)} 个页面，LLM 排序中...")
     ranked = llm_rank_sources(goal, raw_sources)
 
     ranked = [r for r in ranked if r.get("relevance", 0) >= 4]
     if not ranked:
-        print(f"    ❌ LLM 过滤后无有效信源")
+        ts_print(f"    ❌ LLM 过滤后无有效信源")
         return None
 
     ranked = ranked[:3]
-    print(f"    🔍 LLM 筛选后保留 {len(ranked)} 个信源")
+    ts_print(f"    🔍 LLM 筛选后保留 {len(ranked)} 个信源")
     sufficient, reason = llm_check_sufficiency(goal, ranked)
-    print(f"    📊 信源充足性: {'✅' if sufficient else '⚠️'} {reason}")
+    ts_print(f"    📊 信源充足性: {'✅' if sufficient else '⚠️'} {reason}")
 
     cached_sources = []
     for r in ranked:
@@ -959,7 +937,7 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
         })
 
     if not cached_sources:
-        print(f"    ❌ 缓存全失败")
+        ts_print(f"    ❌ 缓存全失败")
         return None
 
     reg = {}
@@ -1026,7 +1004,7 @@ async def step2_dispatch(pool: dict, count: int):
     crawler = await get_crawler()
 
     # 启动时预检搜索引擎可达性
-    print("🔍 网络预检...")
+    ts_print("🔍 网络预检...")
     net_status = await check_connectivity(crawler)
     engine_summary = []
     if net_status["ddg_ok"]:
@@ -1037,9 +1015,9 @@ async def step2_dispatch(pool: dict, count: int):
         engine_summary.append("百度 ✓")
     else:
         engine_summary.append("百度 ✗")
-    print(f"  {' | '.join(engine_summary)} | 本地信源: {net_status['local_count']} 个")
+    ts_print(f"  {' | '.join(engine_summary)} | 本地信源: {net_status['local_count']} 个")
     glog.info(f"网络预检: {net_status}")
-    print()
+    ts_print()
 
     all_pending = []
     for series in _get_priority():
@@ -1059,8 +1037,8 @@ async def step2_dispatch(pool: dict, count: int):
     for series_key, seed in all_pending[:count]:
         title = seed.get("title", "")[:50]
         kw = seed.get("kw", "")[:50]
-        print(f"\n  [{series_key}] {title}")
-        print(f"  kw: {kw}")
+        ts_print(f"\n  [{series_key}] {title}")
+        ts_print(f"  kw: {kw}")
 
         result = await dispatch_one(crawler, seed, series_key, pool, net_status)
         if result:
@@ -1069,28 +1047,28 @@ async def step2_dispatch(pool: dict, count: int):
             dispatched += 1
             if sufficient:
                 glog.info(f"  ✅ {cid} ready | 信源充足")
-                print(f"  ✅ {cid} ready（信源充足）")
+                ts_print(f"  ✅ {cid} ready（信源充足）")
             else:
                 glog.info(f"  ⚠️ {cid} ready | 信源不足: {reason[:60]}")
-                print(f"  ⚠️ {cid} ready（信源不足: {reason[:60]}）")
+                ts_print(f"  ⚠️ {cid} ready（信源不足: {reason[:60]}）")
         else:
             policy = get_source_policy(series_key)
             if policy == "required":
                 seed["status"] = "source_failed"
                 glog.warning(f"  ❌ {series_key} source_failed (required)")
-                print(f"  ❌ source_failed")
+                ts_print(f"  ❌ source_failed")
             else:
                 seed["status"] = "dispatched"
                 dispatched += 1
                 glog.info(f"  ⚠️ {series_key} dispatched (no source, optional)")
-                print(f"  ⚠️ no source but optional, dispatched anyway")
+                ts_print(f"  ⚠️ no source but optional, dispatched anyway")
 
         store.write(pool)
 
     q = json.loads(CARDS_FILE.read_text()) if CARDS_FILE.exists() else {"cards": []}
     statuses = dict(Counter(c["status"] for c in q["cards"]))
     glog.info(f"✓ 阶段二完成: {dispatched}/{count} dispatched | 队列: {statuses}")
-    print(f"\n📊 派发: {dispatched}/{count} | 队列: {statuses}")
+    ts_print(f"\n📊 派发: {dispatched}/{count} | 队列: {statuses}")
 
 
 def main():
@@ -1099,31 +1077,31 @@ def main():
     parser.add_argument("--count", type=int, default=10, help="本次派发卡片数")
     args = parser.parse_args()
 
-    print(f"🚀 LocalLLM-IP-Factory · 阶段一+二 (target≥{args.target}, dispatch={args.count})")
-    print(f"   LLM: {XIANKA_MODEL} @ {XIANKA_GATEWAY}")
-    print()
+    ts_print(f"🚀 LocalLLM-IP-Factory · 阶段一+二 (target≥{args.target}, dispatch={args.count})")
+    ts_print(f"   LLM: {XIANKA_MODEL} @ {XIANKA_GATEWAY}")
+    ts_print()
 
     pool = store.read()
 
-    print("第零步: 系列扩展检查")
+    ts_print("第零步: 系列扩展检查")
     pool = step0_series_expansion(pool)
-    print()
+    ts_print()
 
     # API 引擎预检（种子生成前，不需要 crawler）
-    print("🔍 引擎可用性预检...")
+    ts_print("🔍 引擎可用性预检...")
     engine_status = check_api_engines()
     for code, info in engine_status.items():
-        print(f"  {info['label']} ({code}): {'✓' if info['ok'] else '✗'}")
-    print()
+        ts_print(f"  {info['label']} ({code}): {'✓' if info['ok'] else '✗'}")
+    ts_print()
 
-    print("阶段一: 种子生成")
+    ts_print("阶段一: 种子生成")
     step0b_recycle_dead(pool)
     step1_generate_seeds(pool, args.target, engine_status)
-    print()
+    ts_print()
 
-    print("阶段二: 信源缓存 + 卡片派发 (LLM增强)")
+    ts_print("阶段二: 信源缓存 + 卡片派发 (LLM增强)")
     asyncio.run(step2_dispatch(pool, args.count))
-    print()
+    ts_print()
 
     pool = store.read()
     total_pending = 0
@@ -1131,16 +1109,16 @@ def main():
         if key in pool:
             c = sum(1 for s in pool[key].get("seeds", []) if s.get("status") == "pending")
             if c > 0:
-                print(f"  {key}: {c} pending")
+                ts_print(f"  {key}: {c} pending")
             total_pending += c
-    print(f"\n📊 pending 总计: {total_pending}/{args.target}")
+    ts_print(f"\n📊 pending 总计: {total_pending}/{args.target}")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n⏹️ 用户中断")
+        ts_print("\n⏹️ 用户中断")
     # close_crawler 不在这里调：crawler 是在 step2_dispatch 的
     # asyncio.run() 事件循环中创建的，在另一个事件循环里关它会
     # 因跨循环资源绑定而永久挂起。进程退出时 OS 会自动清理。
