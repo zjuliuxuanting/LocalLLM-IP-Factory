@@ -557,22 +557,25 @@ async def search_patents(crawler, kw: str, max_results=6) -> list[dict]:
 
 
 async def search_wikipedia(kw: str, max_results=6) -> list[dict]:
-    """用 Wikipedia API 搜索"""
-    import urllib.request, urllib.parse
+    """用 Wikipedia API 搜索。最多重试 3 次。"""
+    import urllib.request, urllib.parse, time as _time
     query = urllib.parse.quote(kw)
     url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={query}&format=json&srlimit={max_results}"
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
-        hits = []
-        for r in data.get("query", {}).get("search", []):
-            title = r.get("title", "")
-            page_url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))}"
-            hits.append({"url": page_url, "title": title, "snippet": r.get("snippet", "")[:200]})
-        return hits
-    except Exception:
-        return []
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+            hits = []
+            for r in data.get("query", {}).get("search", []):
+                title = r.get("title", "")
+                page_url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))}"
+                hits.append({"url": page_url, "title": title, "snippet": r.get("snippet", "")[:200]})
+            return hits
+        except Exception:
+            if attempt < 2:
+                _time.sleep(1)
+    return []
 
 
 async def search_stackexchange(kw: str, max_results=6) -> list[dict]:
@@ -616,27 +619,30 @@ async def crawl_page(crawler, url: str) -> tuple[str, str]:
 
 
 async def fetch_page_http(url: str) -> tuple[str, str]:
-    """httpx 直连抓取（不经过 Playwright，走 urllib 代理 opener）"""
-    import urllib.request as _ur2
-    try:
-        req = _ur2.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; LocalLLM/3.0)"})
-        resp = _ur2.urlopen(req, timeout=15)
-        html = resp.read().decode("utf-8", errors="replace")
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(html, "html.parser")
-        for tag in soup(["script", "style", "nav", "footer", "header"]):
-            tag.decompose()
-        text = soup.get_text(separator="\n")
-        lines = [l.strip() for l in text.splitlines() if l.strip()]
-        title = ""
-        if lines:
-            title = lines[0][:100]
-        body = "\n".join(lines)
-        if len(body) < 200:
-            return "", ""
-        return title, body[:12000]
-    except Exception:
-        return "", ""
+    """httpx 直连抓取（不经过 Playwright，走 urllib 代理 opener）。最多重试 3 次。"""
+    import urllib.request as _ur2, time as _time
+    for attempt in range(3):
+        try:
+            req = _ur2.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; LocalLLM/3.0)"})
+            resp = _ur2.urlopen(req, timeout=15)
+            html = resp.read().decode("utf-8", errors="replace")
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html, "html.parser")
+            for tag in soup(["script", "style", "nav", "footer", "header"]):
+                tag.decompose()
+            text = soup.get_text(separator="\n")
+            lines = [l.strip() for l in text.splitlines() if l.strip()]
+            title = ""
+            if lines:
+                title = lines[0][:100]
+            body = "\n".join(lines)
+            if len(body) < 200:
+                return "", ""
+            return title, body[:12000]
+        except Exception:
+            if attempt < 2:
+                _time.sleep(1)
+    return "", ""
 
 
 def llm_rank_sources(goal: str, sources: list[dict]) -> list[dict]:
@@ -921,11 +927,13 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
 
     ranked = [r for r in ranked if r.get("relevance", 0) >= 2]
     if not ranked:
-        ts_print(f"    ❌ LLM 过滤后无有效信源")
-        return None
+        ts_print(f"    ⚠️ LLM 过滤后无有效信源，使用全部原始信源")
+        ranked = [{"url": s["url"], "title": s.get("title", s["url"]), "relevance": 5,
+                   "key_paragraphs": [s["raw_content"][:2000]], "summary": ""}
+                  for s in raw_sources[:3]]
 
     ranked = ranked[:3]
-    ts_print(f"    🔍 LLM 筛选后保留 {len(ranked)} 个信源")
+    ts_print(f"    🔍 保留 {len(ranked)} 个信源")
     sufficient, reason = llm_check_sufficiency(goal, ranked)
     ts_print(f"    📊 信源充足性: {'✅' if sufficient else '⚠️'} {reason}")
 
