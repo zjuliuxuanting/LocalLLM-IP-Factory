@@ -40,7 +40,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-PYTHON=python3
+PYTHON=/opt/homebrew/bin/python3.11
+if [ ! -f "$PYTHON" ]; then
+    PYTHON=/usr/local/bin/python3.11
+fi
+if [ ! -f "$PYTHON" ]; then
+    PYTHON=python3
+fi
 
 # ── .env ──
 if [ ! -f config/.env ]; then
