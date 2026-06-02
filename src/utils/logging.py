@@ -18,8 +18,10 @@ class JsonFormatter(logging.Formatter):
     """输出单行 JSON 日志，便于机器解析"""
 
     def format(self, record: logging.LogRecord) -> str:
+        now = datetime.now()
         payload = {
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": now.isoformat(),
+            "time": now.strftime("%H:%M:%S"),
             "level": record.levelname,
             "logger": record.name,
             "msg": record.getMessage(),
@@ -121,3 +123,11 @@ def log_stage_done(card_id: str, stage: str, duration_s: float,
         "card_id": card_id, "stage": stage, "event": "stage_done",
         "duration_s": round(duration_s, 1), "ok": ok,
     })
+
+
+# ── 时间戳 print 替代 ──
+
+def ts_print(*args, **kwargs):
+    """带时间戳的 print，用于替代 pipeline 脚本中的裸 print()"""
+    ts = datetime.now().strftime("%H:%M:%S")
+    print(f"[{ts}]", *args, **kwargs)

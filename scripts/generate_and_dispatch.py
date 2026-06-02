@@ -615,6 +615,30 @@ async def crawl_page(crawler, url: str) -> tuple[str, str]:
     return title, md[:12000]
 
 
+async def fetch_page_http(url: str) -> tuple[str, str]:
+    """httpx 直连抓取（不经过 Playwright，走 urllib 代理 opener）"""
+    import urllib.request as _ur2
+    try:
+        req = _ur2.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; LocalLLM/3.0)"})
+        resp = _ur2.urlopen(req, timeout=15)
+        html = resp.read().decode("utf-8", errors="replace")
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header"]):
+            tag.decompose()
+        text = soup.get_text(separator="\n")
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        title = ""
+        if lines:
+            title = lines[0][:100]
+        body = "\n".join(lines)
+        if len(body) < 200:
+            return "", ""
+        return title, body[:12000]
+    except Exception:
+        return "", ""
+
+
 def llm_rank_sources(goal: str, sources: list[dict]) -> list[dict]:
     """用 LLM对抓取的原文按 goal 相关性排序 + 提取关键段落
 
@@ -875,6 +899,8 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
             continue
         cat, pri, label = classify_url(hit["url"])
         page_title, content = await crawl_page(crawler, hit["url"])
+        if not content:
+            page_title, content = await fetch_page_http(hit["url"])
         if not content:
             continue
         raw_sources.append({
