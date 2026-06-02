@@ -21,6 +21,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from src.models.gateway import call_xianka
+from config.settings import path_to_rel
 
 LOCAL_DIR = SCRIPT_DIR / "data" / "source_cache" / "local"
 SHARED_DIR = SCRIPT_DIR / "data" / "source_cache" / "shared"
@@ -115,8 +116,18 @@ def extract_text(filepath: Path) -> str:
         finally:
             Path(tmp_path).unlink(missing_ok=True)
 
-    # PDF → pdfminer（跨平台）
+    # PDF → 优先 pdftotext（跨平台），兜底 pdfminer
     if ext == ".pdf":
+        try:
+            r = subprocess.run(
+                ["pdftotext", "-layout", "-nopgbrk", str(filepath), "-"],
+                capture_output=True, text=True, timeout=60,
+            )
+            text = r.stdout
+            if len(text.strip()) > 100:
+                return text
+        except Exception:
+            pass
         try:
             from pdfminer.high_level import extract_text as pdf_extract
             text = pdf_extract(str(filepath))
@@ -124,7 +135,7 @@ def extract_text(filepath: Path) -> str:
                 return text
         except ImportError:
             pass
-        return f"[PDF 提取失败，请安装 pdfminer.six: {filepath.name}]"
+        return f"[PDF 提取失败，请安装 pdftotext 或 pdfminer.six: {filepath.name}]"
 
     return f"[不支持的格式: {ext}]"
 
@@ -188,19 +199,19 @@ def save_and_register(
                 "source_type": "local_translated",
                 "title": f"{safe_name} (chunk {i+1}/{len(chunks)})",
                 "url": f"local://{filepath.name}#chunk{i}",
-                "original_file": str(filepath),
+                "original_file": path_to_rel(str(filepath)),
                 "parent_source": base_sid,
                 "chunk_index": i,
                 "total_chunks": len(chunks),
                 "retrieved_at": datetime.now(timezone.utc).isoformat(),
-                "cache_path": str(fpath),
+                "cache_path": path_to_rel(str(fpath)),
                 "content_hash": hashlib.md5(chunk.encode()).hexdigest()[:12],
                 "content_length": len(chunk),
                 "keywords": keywords or [],
                 "llm_relevance": 10,
                 "used_by": [],
             }
-        results.append((sid, str(fpath), i))
+        results.append((sid, path_to_rel(str(fpath)), i))
 
     REG_FILE.write_text(json.dumps(reg, indent=2, ensure_ascii=False))
     return results

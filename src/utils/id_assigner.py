@@ -82,6 +82,7 @@ class IdAssigner:
     def __init__(self, existing_ids: Set[str]):
         self.slots, self.map_ids = parse_project_map()
         self.used = set(self.map_ids) | existing_ids
+        self.existing_ids = existing_ids  # 实际产出的卡片 ID
 
     def _assign_from_slots(self, series: str) -> Optional[str]:
         """从 PROJECT_MAP 的可扩展区域分配编号"""
@@ -89,6 +90,12 @@ class IdAssigner:
             return None
         for sl in sorted(self.slots[series],
                          key=lambda s: (s['ch'], s['sec'], s['start'])):
+            # 章节 >= 2 的 slot，只在 chapter 1 已有实际产出卡片时才启用
+            if sl['ch'] >= 2:
+                prefix_1 = f"{series}1-"
+                chapter_1_exists = any(i.startswith(prefix_1) for i in self.existing_ids)
+                if not chapter_1_exists:
+                    continue
             prefix = f"{series}{sl['ch']}-{sl['sec']}-"
             used_in_slot = sorted(
                 i for i in self.used if i.startswith(prefix)

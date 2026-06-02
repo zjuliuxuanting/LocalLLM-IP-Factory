@@ -6,12 +6,14 @@ from src.pipeline.card_state import CardContext
 from src.models.gateway import call_xianka
 from src.models.prompts.factcheck import build_factcheck_prompt
 from src.quality.gate import gate
-from src.utils.logging import get_logger
+from src.utils.logging import get_logger, log_stage_start, log_stage_done
 
 logger = get_logger("factcheck")
 
 
 async def execute(ctx: CardContext) -> CardContext:
+    log_stage_start(ctx.card_id, "S7查证")
+    import time; t0 = time.time()
     text = ctx.polished or ctx.revised or ctx.draft
     prompt = build_factcheck_prompt(ctx.card, text, ctx.source_text)
     raw = call_xianka(prompt, max_tokens=2048, temperature=0.2, structured=True)
@@ -42,4 +44,5 @@ async def execute(ctx: CardContext) -> CardContext:
         from src.pipeline.stages.draft import execute as draft_execute
         return await draft_execute(ctx, context=fc_context)
 
+    log_stage_done(ctx.card_id, "S7查证", time.time() - t0)
     return ctx

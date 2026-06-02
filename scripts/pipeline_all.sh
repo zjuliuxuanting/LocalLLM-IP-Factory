@@ -141,8 +141,20 @@ print(f'{ready} {done}')
         LOGFILE="output/logs/pipeline.jsonl"
         : > "$LOGFILE"
         (tail -f "$LOGFILE" 2>/dev/null | while read line; do
-            msg=$(echo "$line" | /opt/homebrew/bin/python3.11 -c "import sys,json; print(json.loads(sys.stdin.read()).get('msg',''))" 2>/dev/null || echo "$line")
-            echo "    $msg"
+            echo "$line" | /opt/homebrew/bin/python3.11 -c "
+import sys,json
+try:
+    d=json.loads(sys.stdin.read())
+    stage=d.get('stage','') or d.get('logger','')
+    card=d.get('card_id','')
+    msg=d.get('msg','')
+    dur=d.get('duration_s','')
+    if dur: dur=f'({dur}s)'
+    tag=f'{stage}/{card}' if card else stage
+    print(f'    {tag} {msg} {dur}')
+except:
+    print(f'    {sys.stdin.read()[:120]}')
+" 2>/dev/null
         done) &
         TAIL_PID=$!
         if [ "$DAEMON" = true ]; then

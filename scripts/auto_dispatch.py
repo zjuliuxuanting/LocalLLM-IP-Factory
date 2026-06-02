@@ -40,7 +40,7 @@ def cache_source(title, url, content):
     safe = "".join(c if c.isalnum() or c in "._- " else "_" for c in title)[:50]
     fpath = SHARED / f"c4a_{safe.strip()}.md"
     fpath.write_text(f"# {title}\n> Source: {url}\n\n{content[:8000]}", encoding="utf-8")
-    return str(fpath)
+    return path_to_rel(str(fpath))
 
 
 def register(reg_file, title, url, cache_path, content, kw):
@@ -119,6 +119,7 @@ async def dispatch_batch(count=5):
 
                 # 3. 创建卡片
                 from src.utils.id_assigner import IdAssigner
+from config.settings import path_to_rel
                 assigner = IdAssigner({c["id"] for c in q["cards"]})
                 cid = assigner.assign(series_key)
                 topic = pool[series_key].get("topic", "") if isinstance(pool[series_key], dict) else ""

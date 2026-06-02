@@ -13,7 +13,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from src.io.store import AtomicJsonStore
-from config.settings import QUEUE_FILE
+from config.settings import QUEUE_FILE, rel_to_abs
 
 NAS_PATH = "/<NAS_MOUNT>/<NAS_PROJECT_PATH>/"
 
@@ -29,7 +29,7 @@ def push():
 
     for c in ready:
         files = c.get("source_files", [])
-        all_exist = all(Path(f).exists() for f in files) if files else False
+        all_exist = all(rel_to_abs(f).exists() for f in files) if files else False
         if all_exist:
             ok.append(c)
         else:

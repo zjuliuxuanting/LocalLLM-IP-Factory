@@ -25,7 +25,7 @@ from src.utils.id_assigner import IdAssigner
 from config.series_definitions import all_series_keys, get_series, get_source_policy
 from config.settings import (
     PROXY, SEED_POOL_FILE, XIANKA_GATEWAY, XIANKA_MODEL,
-    MAX_TOKENS, TEMPERATURE,
+    MAX_TOKENS, TEMPERATURE, path_to_rel, rel_to_abs,
 )
 from src.pipeline.series_expansion import run_expansion_check
 
@@ -62,7 +62,8 @@ STOP_WORDS = frozenset({
     "more","than",
 })
 
-PRIORITY = ["A", "B", "C", "D", "E", "F", "G"]
+def _get_priority():
+    return all_series_keys()
 
 # LLM LLM 配置（供 Crawl4AI 的 LLM extraction strategy 使用）
 # LLM API = OpenAI 兼容: {XIANKA_GATEWAY}/v1/chat/completions
@@ -270,6 +271,99 @@ async def search_baidu(crawler, kw: str, max_results=5) -> list[dict]:
     return hits
 
 
+async def search_pubmed(kw: str, max_results=8) -> list[dict]:
+    """用 PubMed E-utilities API 搜索并直接获取摘要"""
+    import urllib.request, urllib.parse
+    query = urllib.parse.quote(kw)
+    url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term={query}&retmax={max_results}&retmode=json"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+        ids = data.get("esearchresult", {}).get("idlist", [])
+        if not ids:
+            return []
+        fetch_url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id={','.join(ids)}&rettype=abstract&retmode=text"
+        req2 = urllib.request.Request(fetch_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req2, timeout=15) as resp2:
+            abstracts = resp2.read().decode("utf-8")
+        sections = re.split(r'\n\d+\.\s*\n', '\n' + abstracts)
+        hits = []
+        for i, pmid in enumerate(ids):
+            abstract_text = sections[i+1].strip() if i+1 < len(sections) else ""
+            if not abstract_text or len(abstract_text) < 100:
+                abstract_text = f"PubMed article {pmid}"
+            hits.append({
+                "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+                "title": f"PubMed {pmid}",
+                "snippet": "",
+                "_raw_content": abstract_text,
+            })
+        return hits
+    except Exception:
+        return []
+
+
+async def search_arxiv(kw: str, max_results=8) -> list[dict]:
+    """用 arXiv API 搜索"""
+    import urllib.request, urllib.parse
+    query = urllib.parse.quote(kw)
+    url = f"https://export.arxiv.org/api/query?search_query=all:{query}&max_results={max_results}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = resp.read().decode("utf-8")
+        hits = []
+        for m in re.finditer(r'<entry>.*?<id>(.*?)</id>.*?<title>(.*?)</title>', data, re.DOTALL):
+            url = m.group(1).strip()
+            title = re.sub(r'\s+', ' ', m.group(2).strip())
+            hits.append({"url": url, "title": title, "snippet": ""})
+            if len(hits) >= max_results:
+                break
+        return hits
+    except Exception:
+        return []
+
+
+async def search_wikipedia(kw: str, max_results=6) -> list[dict]:
+    """用 Wikipedia API 搜索"""
+    import urllib.request, urllib.parse
+    query = urllib.parse.quote(kw)
+    url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={query}&format=json&srlimit={max_results}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        hits = []
+        for r in data.get("query", {}).get("search", []):
+            title = r.get("title", "")
+            page_url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))}"
+            hits.append({"url": page_url, "title": title, "snippet": r.get("snippet", "")[:200]})
+        return hits
+    except Exception:
+        return []
+
+
+async def search_stackexchange(kw: str, max_results=6) -> list[dict]:
+    """用 StackExchange Pets API 搜索宠物问答"""
+    import urllib.request, urllib.parse
+    query = urllib.parse.quote(kw)
+    url = f"https://api.stackexchange.com/2.3/search?order=desc&sort=relevance&q={query}&pagesize={max_results}&site=pets"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        hits = []
+        for item in data.get("items", []):
+            title = item.get("title", "")
+            link = item.get("link", "")
+            snippet = item.get("body_markdown", "")[:300] if item.get("body_markdown") else ""
+            hits.append({"url": link, "title": title, "snippet": snippet})
+        return hits
+    except Exception:
+        return []
+
+
 async def crawl_page(crawler, url: str) -> tuple[str, str]:
     r = await crawler.arun(url)
     if not r or not r.success:
@@ -405,7 +499,7 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
         local_sources = [
             s for s in reg.values()
             if s.get("source_type") == "local_translated"
-            and s.get("cache_path") and Path(s["cache_path"]).exists()
+            and s.get("cache_path") and rel_to_abs(s["cache_path"]).exists()
         ]
         for src in local_sources:
             src_kws = set(k.lower() for k in src.get("keywords", []))
@@ -417,7 +511,7 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
                         break
             if matched_kws:
                 try:
-                    content = Path(src["cache_path"]).read_text(encoding="utf-8", errors="ignore")[:12000]
+                    content = rel_to_abs(src["cache_path"]).read_text(encoding="utf-8", errors="ignore")[:12000]
                 except Exception:
                     continue
                 if len(content) < 200:
@@ -549,7 +643,7 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
         fpath = SHARED / fname
         fpath.write_text(text, encoding="utf-8")
         cached_sources.append({
-            "path": str(fpath),
+            "path": path_to_rel(str(fpath)),
             "url": r["url"],
             "title": r.get("title", r["url"]),
             "content": text,
@@ -623,7 +717,7 @@ async def step2_dispatch(pool: dict, count: int):
     crawler = await get_crawler()
 
     all_pending = []
-    for series in PRIORITY:
+    for series in _get_priority():
         if series not in pool or not isinstance(pool[series], dict):
             continue
         seeds = pool[series].get("seeds", [])

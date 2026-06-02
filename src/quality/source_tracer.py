@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from config.settings import rel_to_abs
 
 from config.settings import CARDS_DIR
 from src.io.source_registry import get_registry, SourceRecord
@@ -175,7 +176,7 @@ def _find_evidence(claim: str, source: SourceRecord) -> str:
     """在信源文件中查找与断言相关的原文段落"""
     if not source.cache_path:
         return ""
-    cache_file = Path(source.cache_path)
+    cache_file = rel_to_abs(source.cache_path)
     if not cache_file.exists():
         return ""
 

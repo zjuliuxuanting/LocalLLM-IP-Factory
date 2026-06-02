@@ -35,4 +35,6 @@ async def execute(ctx: CardContext, context: str = "") -> CardContext:
         return ctx
 
     ctx.outline = outline
+    sec_count = len(outline.get("outline", outline).get("sections", []))
+    logger.info(f"S2 大纲通过: {sec_count} sections")
     return ctx

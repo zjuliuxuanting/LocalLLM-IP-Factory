@@ -6,13 +6,15 @@ from src.pipeline.card_state import CardContext
 from src.models.gateway import call_xianka, clean_response
 from src.models.prompts.draft import build_draft_prompt
 from src.quality.gate import gate
-from src.utils.logging import get_logger
+from src.utils.logging import get_logger, log_stage_start, log_stage_done
 
 logger = get_logger("draft")
 
 
 async def execute(ctx: CardContext, context: str = "") -> CardContext:
+    log_stage_start(ctx.card_id, "S3初稿")
     outline = ctx.outline or {}
+    import time; t0 = time.time()
 
     prompt = build_draft_prompt(
         card=ctx.card,
@@ -41,4 +43,5 @@ async def execute(ctx: CardContext, context: str = "") -> CardContext:
         ctx.mark_failed(f"S3: 初稿质检失败 — {reason}")
         return ctx
 
+    log_stage_done(ctx.card_id, "S3初稿", time.time() - t0)
     return ctx

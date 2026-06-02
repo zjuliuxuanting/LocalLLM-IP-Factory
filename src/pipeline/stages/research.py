@@ -7,6 +7,7 @@ from pathlib import Path
 from src.pipeline.card_state import CardContext
 from src.io.source_registry import get_registry
 from src.utils.logging import get_logger
+from config.settings import rel_to_abs
 
 logger = get_logger("research")
 
@@ -25,18 +26,18 @@ async def execute(ctx: CardContext) -> CardContext:
             query = searches[0].get("query", "")
             matched = registry.find_by_keyword(query)
             for rec in matched:
-                if rec.cache_path and Path(rec.cache_path).exists():
+                if rec.cache_path and rel_to_abs(rec.cache_path).exists():
                     registry.link_to_card(rec.source_id, cid)
                     sources.append(rec)
 
     if not sources:
         # 兜底：直接读卡片的 source_files
         for sf in ctx.card.get("source_files", []):
-            if Path(sf).exists():
+            if rel_to_abs(sf).exists():
                 ctx.source_files.append(sf)
                 parts = []
                 try:
-                    text = Path(sf).read_text(encoding="utf-8", errors="ignore")
+                    text = rel_to_abs(sf).read_text(encoding="utf-8", errors="ignore")
                     parts.append(f"[信源:{Path(sf).name}]\n{text[:4000]}")
                 except OSError:
                     continue
@@ -51,7 +52,7 @@ async def execute(ctx: CardContext) -> CardContext:
     parts = []
     for rec in sources[:5]:
         try:
-            text = Path(rec.cache_path).read_text(encoding="utf-8", errors="ignore")
+            text = rel_to_abs(rec.cache_path).read_text(encoding="utf-8", errors="ignore")
             parts.append(f"[信源:{rec.title[:60]}]\n{text[:4000]}")
         except OSError:
             continue

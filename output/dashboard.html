@@ -99,14 +99,16 @@ async function R(){
   let pidText=await T('.daemon.pid');let pid=pidText.trim();
   let di=document.getElementById('daemon-indicator'),ds=document.getElementById('daemon-status');
   if(pid){let alive=await T('.daemon.pid').then(()=>true).catch(()=>false);di.innerHTML=`<span class="daemon-dot daemon-running"></span><span id="daemon-status">运行中 PID=${pid}</span>`}else{di.innerHTML=`<span class="daemon-dot daemon-stopped"></span><span id="daemon-status">未运行</span>`}
-  // 日志
-  let log=await T('output/logs/daemon.log');
+  // 日志（pipeline.jsonl 结构化 JSON）
+  let log=await T('output/logs/pipeline.jsonl');
   if(log&&log.length>_lastLogLen){
     _lastLogLen=log.length;
     let lines=log.split('\n').filter(l=>l.trim()).slice(-30);
     let lb=document.getElementById('log-box');lb.innerHTML=lines.map(l=>{
-      let cls='';if(l.includes('ERROR')||l.includes('失败'))cls='err';else if(l.includes('WARN'))cls='warn';else if(l.includes('完成')||l.includes('✓'))cls='info';
-      return `<div class="${cls}">${l.replace(/</g,'&lt;')}</div>`
+      let cls='',text=l;
+      try{let j=JSON.parse(l);text=j.msg||l;if(j.level==='ERROR'||j.level==='WARNING')cls='err';else if(j.level==='WARNING')cls='warn';else cls='info'}catch(e){}
+      if(text.includes('失败')||text.includes('✗'))cls='err';else if(text.includes('⚠'))cls='warn';else if(text.includes('✅')||text.includes('✓')||text.includes('▶'))cls='info';
+      return `<div class="${cls}">${text.replace(/</g,'&lt;')}</div>`
     }).join('');lb.scrollTop=lb.scrollHeight;
     document.getElementById('log-count').textContent=`${lines.length} 行`;
   }

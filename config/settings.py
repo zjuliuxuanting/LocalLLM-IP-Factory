@@ -9,6 +9,22 @@ from pathlib import Path
 # ── 项目根目录 ──
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+# ── 加载 .env ──
+def _load_dotenv():
+    env_file = PROJECT_ROOT / "config" / ".env"
+    if not env_file.exists():
+        return
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key, val = key.strip(), val.strip().strip('"').strip("'")
+        if key not in os.environ:
+            os.environ[key] = val
+
+_load_dotenv()
+
 # ── 数据目录 ──
 DATA_DIR = PROJECT_ROOT / "data"
 QUEUE_DIR = DATA_DIR / "queue"
@@ -88,6 +104,25 @@ SOURCE_URLS = {
     "sciencedaily": "https://www.sciencedaily.com/search/?keyword={query}",
     "bing": "https://www.bing.com/search?q={query}",
 }
+
+
+def path_to_rel(abs_or_rel_path: str) -> str:
+    """绝对路径 → 相对于 PROJECT_ROOT 的路径；已为相对路径则原样返回"""
+    p = Path(abs_or_rel_path)
+    if p.is_absolute():
+        try:
+            return str(p.relative_to(PROJECT_ROOT))
+        except ValueError:
+            return abs_or_rel_path
+    return abs_or_rel_path
+
+
+def rel_to_abs(path_str: str) -> Path:
+    """相对 PROJECT_ROOT 的路径 → 绝对 Path；已为绝对路径则原样返回"""
+    p = Path(path_str)
+    if p.is_absolute():
+        return p
+    return (PROJECT_ROOT / p).resolve()
 
 
 def ensure_dirs():

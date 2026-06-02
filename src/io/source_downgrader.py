@@ -5,6 +5,7 @@
 from pathlib import Path
 from src.io.source_registry import get_registry
 from src.utils.logging import get_logger
+from config.settings import rel_to_abs
 
 logger = get_logger("downgrader")
 
@@ -39,7 +40,7 @@ def try_registry(kw: str, card_id: str) -> list[str]:
     if existing:
         files = []
         for rec in existing:
-            if rec.cache_path and Path(rec.cache_path).exists():
+            if rec.cache_path and rel_to_abs(rec.cache_path).exists():
                 registry.link_to_card(rec.source_id, card_id)
                 files.append(str(rec.cache_path))
         if files:
