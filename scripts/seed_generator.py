@@ -116,8 +116,8 @@ def main():
 
     print("🔍 引擎可用性预检...")
     engine_status = check_api_engines()
-    for eng in ("pubmed", "arxiv", "web"):
-        print(f"  {eng}: {'✓' if engine_status[eng] else '✗'}")
+    for code, info in engine_status.items():
+        print(f"  {info['label']} ({code}): {'✓' if info['ok'] else '✗'}")
     print()
 
     pool = store.read()

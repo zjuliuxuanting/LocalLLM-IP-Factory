@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>系统配置 · LocalLLM-IP-Factory V3</title>
+<style>
+:root {
+  --bg: #0b0b12;
+  --surface: #14141f;
+  --surface-hover: #1a1a28;
+  --border: #232332;
+  --border-focus: #4a4a60;
+  --text: #e4e1db;
+  --text-secondary: #8b8880;
+  --text-muted: #5c5a55;
+  --accent: #f0a040;
+  --accent-soft: rgba(240, 160, 64, 0.12);
+  --accent-glow: rgba(240, 160, 64, 0.25);
+  --green: #5cb88e;
+  --green-soft: rgba(92, 184, 142, 0.15);
+  --red: #d9706a;
+  --red-soft: rgba(217, 112, 106, 0.15);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --font-body: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", system-ui, -apple-system, sans-serif;
+  --font-display: "Songti SC", "Noto Serif SC", "STSong", "SimSun", serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow-x: hidden;
+}
+
+/* ── ambient background texture ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 30%, rgba(240, 160, 64, 0.04) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 50% at 80% 70%, rgba(110, 160, 200, 0.03) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 20% 80%, rgba(180, 140, 100, 0.03) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── subtle waveform pattern ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.018;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 38px, rgba(240,160,64,0.5) 38px, rgba(240,160,64,0.5) 39px),
+    repeating-linear-gradient(90deg, transparent, transparent 62px, rgba(180,180,200,0.4) 62px, rgba(180,180,200,0.4) 63px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── header ── */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(240, 160, 64, 0.3), rgba(200, 120, 40, 0.15));
+  border: 1px solid rgba(240, 160, 64, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+}
+.brand h1 {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.brand h1 span {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 4px;
+  letter-spacing: 0;
+}
+
+/* ── status pill ── */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  transition: all 0.4s ease;
+}
+.status-pill.loading { background: rgba(140,140,160,0.1); color: var(--text-muted); }
+.status-pill.online { background: var(--green-soft); color: var(--green); }
+.status-pill.offline { background: var(--red-soft); color: var(--red); }
+.status-pill.needs-auth { background: var(--accent-soft); color: var(--accent); }
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-pill.loading .status-dot { background: var(--text-muted); }
+.status-pill.online .status-dot { background: var(--green); box-shadow: 0 0 6px rgba(92,184,142,0.5); }
+.status-pill.offline .status-dot { background: var(--red); box-shadow: 0 0 6px rgba(217,112,106,0.4); }
+.status-pill.needs-auth .status-dot { background: var(--accent); box-shadow: 0 0 6px rgba(240,160,64,0.5); }
+
+/* ── card ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.3),
+    0 4px 16px rgba(0,0,0,0.2);
+  animation: cardIn 0.5s ease both;
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── form field ── */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.field-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.field-icon {
+  width: 16px;
+  text-align: center;
+  opacity: 0.55;
+  font-size: 0.85rem;
+}
+.field-input {
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
+  outline: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  -webkit-appearance: none;
+}
+.field-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.field-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(160,150,180,0.08);
+  background: #0d0d17;
+}
+.field-input.field-mono {
+  font-family: "SF Mono", "Cascadia Code", "Menlo", "Consolas", monospace;
+  font-size: 0.82rem;
+}
+
+/* ── password reveal ── */
+.password-wrap {
+  position: relative;
+}
+.password-wrap .field-input {
+  padding-right: 44px;
+}
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color 0.2s;
+  font-family: var(--font-body);
+}
+.password-toggle:hover { color: var(--text-secondary); }
+
+/* ── divider ── */
+.field-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+
+/* ── section title ── */
+.section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: -8px;
+}
+
+/* ── actions ── */
+.actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 4px;
+}
+.btn {
+  flex: 1;
+  padding: 11px 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+.btn:active { transform: scale(0.975); }
+.btn-primary {
+  background: var(--accent);
+  color: #1a1000;
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+.btn-primary:hover {
+  background: #f5b050;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.btn-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+  border-color: var(--border-focus);
+}
+
+/* ── toast ── */
+.toast-container {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 100;
+  pointer-events: none;
+}
+.toast {
+  padding: 11px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 0.84rem;
+  font-family: var(--font-body);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  animation: toastIn 0.35s ease both, toastOut 0.3s ease 2.5s forwards;
+  pointer-events: auto;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.toast.success {
+  background: rgba(30, 55, 45, 0.95);
+  border: 1px solid rgba(92, 184, 142, 0.3);
+  color: var(--green);
+}
+.toast.error {
+  background: rgba(55, 28, 28, 0.95);
+  border: 1px solid rgba(217, 112, 106, 0.3);
+  color: var(--red);
+}
+.toast.info {
+  background: rgba(40, 35, 25, 0.95);
+  border: 1px solid rgba(240, 160, 64, 0.25);
+  color: var(--accent);
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-8px) scale(0.96); }
+}
+
+/* ── footer note ── */
+.footer-note {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* ── responsive ── */
+@media (max-width: 480px) {
+  body { padding: 16px; align-items: flex-start; padding-top: 40px; }
+  .card { padding: 20px 18px; gap: 16px; }
+  .actions { flex-direction: column; }
+  .header-top { flex-direction: column; align-items: flex-start; gap: 10px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <div class="header-top">
+      <div class="brand">
+        <div class="brand-mark">&#x1F431;</div>
+        <h1>系统配置<span>· LocalLLM-IP-Factory V3</span></h1>
+      </div>
+      <div id="status-pill" class="status-pill loading">
+        <span class="status-dot"></span>
+        <span id="status-text">检测中…</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="form-card">
+    <div class="section-label">模型服务</div>
+    <div class="field-group">
+      <label class="field-label" for="GATEWAY_URL">
+        <span class="field-icon">&#x1F310;</span> LLM 地址
+      </label>
+      <input id="GATEWAY_URL" class="field-input field-mono" type="url" placeholder="http://192.168.31.236:8080" autocomplete="off">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="XIANKA_MODEL">
+        <span class="field-icon">&#x1F3AD;</span> 主模型
+      </label>
+      <input id="XIANKA_MODEL" class="field-input" type="text" placeholder="qwen35b">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="DOUHUA_MODEL">
+        <span class="field-icon">&#x1F50D;</span> 事实核查模型
+      </label>
+      <input id="DOUHUA_MODEL" class="field-input" type="text" placeholder="qwen35b">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="GATEWAY_AUTH">
+        <span class="field-icon">&#x1F511;</span> API 密钥
+      </label>
+      <div class="password-wrap">
+        <input id="GATEWAY_AUTH" class="field-input field-mono" type="password" placeholder="sk-..." autocomplete="off">
+        <button class="password-toggle" id="pw-toggle" type="button" aria-label="显示密钥">显示</button>
+      </div>
+    </div>
+
+    <div class="field-divider"></div>
+    <div class="section-label">网络</div>
+
+    <div class="field-group">
+      <label class="field-label" for="PROXY">
+        <span class="field-icon">&#x1F9F5;</span> 代理地址
+      </label>
+      <input id="PROXY" class="field-input field-mono" type="url" placeholder="http://127.0.0.1:7897">
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="btn-test" type="button">测试连接</button>
+      <button class="btn btn-primary" id="btn-save" type="button">保存配置</button>
+    </div>
+  </div>
+
+  <div class="footer-note">配置保存后自动写入 config/.env，下次运行 pipeline 生效</div>
+
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+const $ = (s) => document.getElementById(s);
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  return res.json();
+}
+
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  const container = $('toast-container');
+  container.appendChild(el);
+  el.addEventListener('animationend', (e) => {
+    if (e.animationName === 'toastOut') el.remove();
+  });
+}
+
+// ── load config ──
+async function loadConfig() {
+  const resp = await api('/api/config');
+  const fields = resp.fields || {};
+  const values = resp.values || {};
+  Object.entries(fields).forEach(([key, f]) => {
+    const inp = $(key);
+    if (!inp) return;
+    if (!inp._touched || inp.value === '') {
+      inp.value = values[key] || '';
+    }
+    inp.placeholder = f.placeholder || '';
+  });
+}
+
+// ── save ──
+async function saveConfig() {
+  const data = {};
+  ['GATEWAY_URL', 'XIANKA_MODEL', 'DOUHUA_MODEL', 'GATEWAY_AUTH', 'PROXY'].forEach(k => {
+    const inp = $(k);
+    if (inp) data[k] = inp.value.trim();
+  });
+  const resp = await fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const result = await resp.json();
+  if (result.ok) {
+    toast('配置已保存', 'success');
+    checkStatus();
+  } else {
+    toast('保存失败: ' + (result.error || '未知错误'), 'error');
+  }
+}
+
+// ── LLM proxy call (avoids browser CORS) ──
+async function proxyTestLLM(url, key) {
+  const resp = await fetch('/api/test-llm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, key }),
+  });
+  return resp.json();
+}
+
+// ── test connection ──
+async function testLLM() {
+  const url = ($('GATEWAY_URL')?.value || '').trim();
+  const key = ($('GATEWAY_AUTH')?.value || '').trim();
+  if (!url) { toast('请先填写 LLM 地址', 'error'); return; }
+  toast('正在测试连接…', 'info');
+
+  const result = await proxyTestLLM(url, key);
+  if (result.ok) {
+    toast(result.message || '连接成功', 'success');
+    updateStatusPill(result);
+  } else {
+    toast(result.message || '连接失败', 'error');
+    updateStatusPill(result);
+  }
+}
+
+// ── status check ──
+async function checkStatus() {
+  try {
+    const resp = await api('/api/config');
+    const url = (resp.values?.GATEWAY_URL || '').trim();
+    const key = (resp.values?.GATEWAY_AUTH || '').trim();
+
+    if (!url) {
+      updateStatusPill({ ok: false, status: 'no_url', message: '未配置' });
+      return;
+    }
+    const result = await proxyTestLLM(url, key);
+    updateStatusPill(result);
+  } catch {
+    updateStatusPill({ ok: false, status: 'offline', message: '检测失败' });
+  }
+}
+
+function updateStatusPill(result) {
+  const pill = $('status-pill');
+  const text = $('status-text');
+  pill.className = 'status-pill ' + (result.status || 'offline');
+  if (result.status === 'online') {
+    text.textContent = result.message || '已连接';
+  } else if (result.status === 'auth_error' || result.status === 'needs-auth') {
+    pill.className = 'status-pill needs-auth';
+    text.textContent = result.message || '需要 API 密钥';
+  } else if (result.status === 'no_url') {
+    pill.className = 'status-pill offline';
+    text.textContent = '未配置';
+  } else {
+    text.textContent = result.message || '无法访问';
+  }
+}
+
+// ── password toggle ──
+$('pw-toggle').addEventListener('click', () => {
+  const inp = $('GATEWAY_AUTH');
+  const btn = $('pw-toggle');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '隐藏';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '显示';
+  }
+});
+
+// ── mark touched on input ──
+document.querySelectorAll('.field-input').forEach(inp => {
+  inp.addEventListener('input', () => { inp._touched = true; });
+});
+
+// ── bind buttons ──
+$('btn-save').addEventListener('click', saveConfig);
+$('btn-test').addEventListener('click', testLLM);
+
+// ── keyboard shortcut ──
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+    e.preventDefault();
+    saveConfig();
+  }
+});
+
+// ── init ──
+loadConfig().then(() => checkStatus());
+</script>
+</body>
+</html>

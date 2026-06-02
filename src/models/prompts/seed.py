@@ -132,16 +132,21 @@ def build_seed_generation_prompt(
 
     engine_guide = ""
     if engine_status:
-        available = [k for k, v in engine_status.items() if v]
-        unavailable = [k for k, v in engine_status.items() if not v]
-        parts = []
-        if available:
-            parts.append(f"**可用引擎: {', '.join(available)}**")
+        lines = []
+        available = []
+        unavailable = []
+        for code, info in engine_status.items():
+            if info["ok"]:
+                available.append(code)
+                lines.append(f"### {info['label']} (`{code}`)")
+                lines.append(f"kw 要求: {info['kw_guidance']}")
+            else:
+                unavailable.append(f"{info['label']}({code})")
         if unavailable:
-            parts.append(f"**不可用引擎: {', '.join(unavailable)}** —— 请勿生成使用这些引擎的种子，用可用引擎替代")
-        if unavailable:
-            parts.append(f"若某引擎不可用但其对应的信源类型仍是该系列的首选，请将 engine 字段设为可用引擎中最接近的替代（如 pubmed 不可用时可用 web，反之亦然）")
-        engine_guide = "\n## ⚠️ 引擎可用性\n" + "\n".join(parts) + "\n"
+            lines.insert(0, f"**不可用引擎: {', '.join(unavailable)}** —— 请勿使用这些引擎。")
+            lines.append("若某引擎不可用，请用可用引擎中功能最接近的替代。")
+        if lines:
+            engine_guide = "\n## ⚠️ 引擎可用性 & kw 指引\n" + "\n\n".join(lines) + "\n"
 
     return f"""你是LocalLLM-IP-FactoryIP的资深内容策划。为"{topic}"系列生成{needed}个新话题种子。
 
@@ -153,7 +158,7 @@ def build_seed_generation_prompt(
 - 推荐引擎: {engine_pref}
 {chapter_note}{engine_guide}{coverage_guide}
 ## 核心 IP 定位
-动物按钮沟通、宠物对话、人宠互动、行为学、动物认知
+跨物种沟通、语言学习、动物认知、行为科学、人宠互动
 
 ## 已有种子 (不要重复标题或变体)
 {existing_block}
@@ -161,13 +166,8 @@ def build_seed_generation_prompt(
 ## 正确示例
 {example_json}
 
-## 可用引擎
-- `pubmed`: NIH 论文数据库，适合科普/科研类种子
-- `arxiv`: 预印本论文，适合技术/前沿类种子
-- `patent`: Google Patents 专利检索，适合调研/产品/技术类种子
-- `web`: 通用搜索引擎（百度/Wikipedia），适合新闻/故事/问答类种子
-
-根据系列特性和引擎可用性选择最合适的引擎。{engine_pref} 是本系列推荐引擎。
+{engine_guide}
+本系列推荐引擎: {engine_pref}。请根据引擎可用性和 kw 指引选择最合适的引擎，并撰写符合该引擎要求的搜索词。
 
 ## 要求
 1. title: 有吸引力的标题，15-50字，应含标点或问句增强吸引力

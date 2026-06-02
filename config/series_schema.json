@@ -1,5 +1,5 @@
 {
-  "description": "喵言汪语系列定义结构",
+  "description": "系列定义结构",
   "type": "object",
   "patternProperties": {
     "^[A-Z]\\d*$": {

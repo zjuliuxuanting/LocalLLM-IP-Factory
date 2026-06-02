@@ -1112,11 +1112,8 @@ def main():
     # API 引擎预检（种子生成前，不需要 crawler）
     print("🔍 引擎可用性预检...")
     engine_status = check_api_engines()
-    parts = []
-    for eng in ("pubmed", "arxiv", "web"):
-        mark = "✓" if engine_status[eng] else "✗"
-        parts.append(f"{eng} {mark}")
-    print(f"  {' | '.join(parts)}")
+    for code, info in engine_status.items():
+        print(f"  {info['label']} ({code}): {'✓' if info['ok'] else '✗'}")
     print()
 
     print("阶段一: 种子生成")

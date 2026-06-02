@@ -1,7 +1,7 @@
 [project]
-name = "miaoyanwangyu"
+name = "local-llm-ip-factory"
 version = "3.0.1"
-description = "喵言汪语 · 自动化内容创作流水线 — 为行为学硬件配套的科普/IP内容矩阵"
+description = "自动化内容创作流水线 — 为垂直领域配套的科普/IP内容矩阵"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0",
@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.scripts]
-miao = "src.main:main"
+llmip = "src.main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
