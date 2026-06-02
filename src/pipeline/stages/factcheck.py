@@ -11,7 +11,7 @@ from src.utils.logging import get_logger, log_stage_start, log_stage_done
 logger = get_logger("factcheck")
 
 
-async def execute(ctx: CardContext) -> CardContext:
+async def execute(ctx: CardContext, context: str = "") -> CardContext:
     log_stage_start(ctx.card_id, "S7查证")
     import time; t0 = time.time()
     text = ctx.polished or ctx.revised or ctx.draft

@@ -154,22 +154,36 @@ def _subtopics(series: str) -> list[str]:
 
 
 def extract_seed_subtopics(seed: dict) -> list[str]:
-    """从一个种子的标题和 goal 中推测覆盖的子话题"""
+    """从一个种子的标题和 goal 中推测覆盖的子话题
+
+    直接匹配系列定义中的子话题名及关键组件，不再依赖硬编码字典。
+    """
     text = seed.get("title", "") + seed.get("goal", "")
     found = []
-    for topic, keywords in {
-        "驯化历史": ["驯化", "起源", "进化", "狼", "祖先"],
-        "动物认知": ["认知", "理解", "智力", "思维", "意识"],
-        "市场规模": ["市场", "规模", "增长", "融资", "估值"],
-        "竞品分析": ["竞品", "对比", "对手", "FluentPet", "品牌"],
-        "入门训练": ["入门", "第一步", "新手", "开始", "基础"],
-        "翻车现场": ["翻车", "搞笑", "失败", "尴尬", "社死"],
-        "创始人": ["创始人", "CEO", "创立", "创业", "故事"],
-        "用户故事": ["用户", "主人", "家庭", "体验", "分享"],
-        "Bunny叙事": ["Bunny", "网红", "TikTok", "成名"],
-    }.items():
-        if any(kw in text for kw in keywords):
+    # 收集所有系列的所有子话题作为候选集
+    all_topics = set()
+    for key in all_series_keys():
+        for t in get_subtopics(key):
+            all_topics.add(t)
+
+    for topic in all_topics:
+        # 子话题名本身出现在文本中
+        if topic in text:
             found.append(topic)
+            continue
+        # 拆分子话题为 2-4 字片段，检查是否有特征片段命中
+        # 例如 "驯化历史" → ["驯化", "历史"]，种子文本含"驯化"即命中
+        chars = topic.replace("、", "").replace("·", "").replace(" ", "")
+        if len(chars) <= 3:
+            # 短话题名（如"社会梗"）：必须字面匹配，上面已检查过
+            continue
+        # 取 2-gram 特征字符组合
+        for i in range(len(chars) - 1):
+            bigram = chars[i:i+2]
+            if len(bigram) >= 2 and bigram in text:
+                found.append(topic)
+                break
+
     return found
 
 
@@ -179,15 +193,27 @@ def analyze_coverage(series: str, seeds: list[dict]) -> dict:
     covered = set()
     for s in seeds:
         for t in extract_seed_subtopics(s):
-            covered.add(t)
+            if t in expected:
+                covered.add(t)
 
     return {
         "expected": len(expected),
         "covered": len(covered),
         "coverage_rate": f"{len(covered)/max(len(expected),1)*100:.0f}%",
         "missing": [t for t in expected if t not in covered],
-        "covered_topics": list(covered),
+        "covered_topics": sorted(covered),
     }
+
+
+def get_series_seeds(pool: dict, series: str) -> list[dict]:
+    """收集一个系列在所有章节（B1/B2/B3...）中的种子"""
+    all_seeds = []
+    for k, v in pool.items():
+        if not isinstance(v, dict):
+            continue
+        if k == series or (k.startswith(series) and k[len(series):].isdigit()):
+            all_seeds.extend(v.get("seeds", []))
+    return all_seeds
 
 
 # ══════════════════════════════════════════════════════════════

@@ -3,6 +3,7 @@
 系列约束从 docs/SERIES_TOPICS.md 读取，修改后立即生效。
 """
 import json, re
+from typing import Optional, List
 from pathlib import Path
 
 TOPICS_FILE = Path(__file__).resolve().parent.parent.parent.parent / "docs" / "SERIES_TOPICS.md"
@@ -78,8 +79,18 @@ def build_seed_generation_prompt(
     style: str,
     existing_titles: list[str],
     needed: int = 10,
+    subtopics: Optional[List[str]] = None,
+    covered_topics: Optional[List[str]] = None,
+    chapter_info: str = "",
+    engine_status: Optional[dict] = None,
 ) -> str:
-    """构建种子生成 prompt"""
+    """构建种子生成 prompt
+
+    Args:
+        subtopics: 系列定义的子话题列表
+        covered_topics: 已被现有种子覆盖的子话题
+        chapter_info: 章节上下文（如 "第2卷 · B2"）
+    """
     all_series = _parse_series()
     s = all_series.get(series, {})
 
@@ -91,6 +102,47 @@ def build_seed_generation_prompt(
     goal_rule = s.get("goal_rule", "写作目标，≥20字")
     kw_rule = s.get("kw_rule", "英文关键词 ≥2 词")
 
+    # 覆盖度指导
+    coverage_guide = ""
+    if subtopics:
+        covered = set(covered_topics or [])
+        missing = [t for t in subtopics if t not in covered]
+        if missing:
+            coverage_guide = f"""
+## ⚠️ 子话题覆盖指引
+本系列定义了 {len(subtopics)} 个子话题。当前已覆盖: {', '.join(sorted(covered)) if covered else '(暂无)'}。
+**尚未覆盖的子话题: {', '.join(missing)}**
+👉 请优先从缺失子话题中生成种子，每个子话题至少产出 1-2 个种子。避免在已覆盖子话题上生成变体。
+"""
+        elif covered:
+            coverage_guide = f"""
+## 子话题覆盖
+所有 {len(subtopics)} 个子话题均已覆盖: {', '.join(sorted(covered))}。
+若仍需补种，请深入挖掘已有子话题的细分角度，或从跨话题交叉地带寻找新切入点。
+"""
+
+    chapter_note = ""
+    if chapter_info:
+        chapter_note = f"""
+## 📖 章节上下文
+当前正在为 **{chapter_info}** 生成种子。这是该系列的新章节/新卷，请区别于前卷的内容方向。可以:
+- 从前卷未深挖的子话题切入
+- 或从全新角度重新组织已有话题（更深入、更交叉、更当代）
+"""
+
+    engine_guide = ""
+    if engine_status:
+        available = [k for k, v in engine_status.items() if v]
+        unavailable = [k for k, v in engine_status.items() if not v]
+        parts = []
+        if available:
+            parts.append(f"**可用引擎: {', '.join(available)}**")
+        if unavailable:
+            parts.append(f"**不可用引擎: {', '.join(unavailable)}** —— 请勿生成使用这些引擎的种子，用可用引擎替代")
+        if unavailable:
+            parts.append(f"若某引擎不可用但其对应的信源类型仍是该系列的首选，请将 engine 字段设为可用引擎中最接近的替代（如 pubmed 不可用时可用 web，反之亦然）")
+        engine_guide = "\n## ⚠️ 引擎可用性\n" + "\n".join(parts) + "\n"
+
     return f"""你是LocalLLM-IP-FactoryIP的资深内容策划。为"{topic}"系列生成{needed}个新话题种子。
 
 ## 系列特性
@@ -99,7 +151,7 @@ def build_seed_generation_prompt(
 - Goal 要求: {goal_rule}
 - 搜索词要求: {kw_rule}
 - 推荐引擎: {engine_pref}
-
+{chapter_note}{engine_guide}{coverage_guide}
 ## 核心 IP 定位
 动物按钮沟通、宠物对话、人宠互动、行为学、动物认知
 
@@ -109,6 +161,14 @@ def build_seed_generation_prompt(
 ## 正确示例
 {example_json}
 
+## 可用引擎
+- `pubmed`: NIH 论文数据库，适合科普/科研类种子
+- `arxiv`: 预印本论文，适合技术/前沿类种子
+- `patent`: Google Patents 专利检索，适合调研/产品/技术类种子
+- `web`: 通用搜索引擎（百度/Wikipedia），适合新闻/故事/问答类种子
+
+根据系列特性和引擎可用性选择最合适的引擎。{engine_pref} 是本系列推荐引擎。
+
 ## 要求
 1. title: 有吸引力的标题，15-50字，应含标点或问句增强吸引力
 2. goal: 可执行的写作目标，≥20字，必须包含：
@@ -116,8 +176,8 @@ def build_seed_generation_prompt(
    - 写作角度或叙事手法
    - 至少1个动作词（介绍/分析/讲述/展示/说明等）
    - ❌ 禁止单字标签型 goal（如"幽默""娱乐""猎奇"）
-3. engine: 信源引擎 ({engine_pref} 优先)
-4. kw: ⚠️ **必填：纯英文搜索关键词，≥3 个英文词。严禁中文，严禁拼音。** kw 将直接用于 DuckDuckGo 搜索引擎检索，中文关键词搜不到有效结果。
+3. engine: 信源引擎，从上述可用引擎中选择
+4. kw: ⚠️ **必填：纯英文搜索关键词，≥3 个英文词。严禁中文，严禁拼音。** kw 将直接用于搜索引擎检索，中文关键词搜不到有效结果。
 
 ## 自检清单（输出前逐条确认）
 - [ ] goal ≥ 20 字

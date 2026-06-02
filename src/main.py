@@ -26,6 +26,8 @@ def cmd_status(args):
     print(f"📊 队列: {len(cards)} 张 | {dict(s)}")
 
 def main():
+    from config.settings import ensure_dirs
+    ensure_dirs()
     parser = argparse.ArgumentParser(description="LocalLLM-IP-Factory")
     sub = parser.add_subparsers(dest="command")
     pp = sub.add_parser("pipeline")

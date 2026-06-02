@@ -22,6 +22,7 @@ from config.series_definitions import all_series_keys, get_series
 from config.settings import SEED_POOL_FILE
 
 store = AtomicJsonStore(SEED_POOL_FILE, {})
+from src.utils.engine_check import check_api_engines
 
 
 def step0_series_expansion(pool: dict):
@@ -36,7 +37,7 @@ def step0_series_expansion(pool: dict):
     return pool
 
 
-def step1_generate_seeds(pool: dict, target: int):
+def step1_generate_seeds(pool: dict, target: int, engine_status=None):
     """阶段一：检查各系列 pending，不足时补种"""
     for series_key in all_series_keys():
         if series_key not in pool:
@@ -53,10 +54,16 @@ def step1_generate_seeds(pool: dict, target: int):
 
         print(f"  🌱 {series_key}: pending={pending_count}, 需补 {needed} 个")
 
-        existing_titles = [s.get("title", "") for s in seeds]
         s = get_series(series_key)
         if not s:
             continue
+
+        from src.pipeline.seed_diversity import get_series_seeds, analyze_coverage
+        from config.series_definitions import get_subtopics
+        all_s = get_series_seeds(pool, series_key)
+        existing_titles = [s.get("title", "") for s in all_s]
+        coverage = analyze_coverage(series_key, all_s)
+        subtopics = get_subtopics(series_key)
 
         prompt = build_seed_generation_prompt(
             series=series_key,
@@ -64,6 +71,10 @@ def step1_generate_seeds(pool: dict, target: int):
             style=s.get("style", ""),
             existing_titles=existing_titles,
             needed=needed,
+            subtopics=subtopics,
+            covered_topics=coverage.get("covered_topics", []),
+            chapter_info="",
+            engine_status=engine_status,
         )
 
         raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
@@ -103,6 +114,12 @@ def main():
     print(f"🌱 LocalLLM-IP-Factory · 阶段一 (目标 pending ≥ {args.target})")
     print()
 
+    print("🔍 引擎可用性预检...")
+    engine_status = check_api_engines()
+    for eng in ("pubmed", "arxiv", "web"):
+        print(f"  {eng}: {'✓' if engine_status[eng] else '✗'}")
+    print()
+
     pool = store.read()
 
     print("第零步: 系列扩展检查")
@@ -110,7 +127,7 @@ def main():
     print()
 
     print("阶段一: 种子补种")
-    step1_generate_seeds(pool, args.target)
+    step1_generate_seeds(pool, args.target, engine_status)
     print()
 
     # 报告

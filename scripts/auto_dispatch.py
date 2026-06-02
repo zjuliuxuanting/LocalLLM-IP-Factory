@@ -12,6 +12,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 os.chdir(str(SCRIPT_DIR))
 
+from config.settings import path_to_rel
+
 PROXY = "http://<PROXY_HOST>:7897"
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 SHARED = SCRIPT_DIR / "data" / "source_cache" / "shared"
@@ -119,7 +121,6 @@ async def dispatch_batch(count=5):
 
                 # 3. 创建卡片
                 from src.utils.id_assigner import IdAssigner
-from config.settings import path_to_rel
                 assigner = IdAssigner({c["id"] for c in q["cards"]})
                 cid = assigner.assign(series_key)
                 topic = pool[series_key].get("topic", "") if isinstance(pool[series_key], dict) else ""

@@ -10,7 +10,7 @@ from src.utils.logging import get_logger, log_stage_start, log_stage_done
 logger = get_logger("polish")
 
 
-async def execute(ctx: CardContext) -> CardContext:
+async def execute(ctx: CardContext, context: str = "") -> CardContext:
     import time; t0 = time.time()
     log_stage_start(ctx.card_id, "S6润色")
 

@@ -72,13 +72,6 @@ def check_not_stub(text: str) -> bool:
     return True
 
 
-def check_forbidden_words(text: str, forbidden: list) -> list[str]:
-    """返回命中的禁词列表"""
-    if not forbidden:
-        return []
-    return [w for w in forbidden if w in text]
-
-
 def check_repetition(text: str, threshold: int = 3) -> list[str]:
     """检查内容是否重复（连续段落/句子重复）"""
     issues = []

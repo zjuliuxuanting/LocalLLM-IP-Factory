@@ -24,9 +24,10 @@ from src.io.store import AtomicJsonStore, get_nodes_store, get_edges_store
 from src.io.source_validator import validate_source
 from src.models.gateway import call_douhua
 from src.quality.seed_gate import inspect_seed
+from src.pipeline import seed_diversity
 from src.pipeline.seed_diversity import (
     analyze_coverage, check_batch_diversity, semantic_novelty,
-    detect_patterns,
+    detect_patterns, get_series_seeds,
 )
 from config.series_definitions import SERIES, get_series, all_series_keys, get_subtopics
 from src.utils.logging import get_logger
@@ -63,8 +64,7 @@ def check_saturation(pool: dict, series: str,
       - 子话题覆盖率 > 75%：大部分规划的话题已有种子
       - 或 近期种子内部新颖度 < 0.4：新种子开始雷同
     """
-    data = pool.get(series, {})
-    seeds = data.get("seeds", [])
+    seeds = seed_diversity.get_series_seeds(pool, series)
     coverage = analyze_coverage(series, seeds)
     cov_rate = int(coverage.get("coverage_rate", "0%").rstrip("%")) / 100
 

@@ -34,7 +34,6 @@ class Orchestrator:
                     await asyncio.sleep(60)
                     continue
                 await self._process_one(ctx)
-                self._maybe_generate_dashboard()
         else:
             processed = 0
             while self._running:
@@ -165,16 +164,6 @@ class Orchestrator:
         except Exception as e:
             logger.warning(f"  kg上下文构建异常: {e}")
         return ""
-
-    def _maybe_generate_dashboard(self):
-        try:
-            import subprocess
-            subprocess.run(
-                ["python3", "scripts/generate_dashboard.py"],
-                capture_output=True, timeout=10,
-            )
-        except Exception:
-            pass
 
     def _get_queue_stats(self) -> dict:
         cards = get_queue_store().read().get("cards", [])

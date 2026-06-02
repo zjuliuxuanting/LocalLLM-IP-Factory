@@ -5,10 +5,6 @@
 #   单次运行: bash scripts/pipeline_all.sh --target 50 --count 5
 #   循环运行: bash scripts/pipeline_all.sh --target 50 --count 3 --repeat 3
 #   定时运行: bash scripts/pipeline_all.sh --target 50 --count 3 --duration 3600
-# 用法:
-#   单次运行: bash scripts/pipeline_all.sh --target 50 --count 5
-#   循环运行: bash scripts/pipeline_all.sh --target 50 --count 3 --repeat 3
-#   定时运行: bash scripts/pipeline_all.sh --target 50 --count 3 --duration 3600
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR"
@@ -44,10 +40,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-PYTHON=/opt/homebrew/bin/python3.11
-if [ ! -f "$PYTHON" ]; then
-    PYTHON=python3
-fi
+PYTHON=python3
 
 # ── .env ──
 if [ ! -f config/.env ]; then
@@ -224,9 +217,8 @@ print(f'{ready} {done}')
         echo "  🏭 生产卡片 $READY 张，实时进度:"
         # 在后台 tail pipeline.jsonl，提取 msg 字段显示
         LOGFILE="output/logs/pipeline.jsonl"
-        : > "$LOGFILE"
         (tail -f "$LOGFILE" 2>/dev/null | while read line; do
-            echo "$line" | /opt/homebrew/bin/python3.11 -c "
+            echo "$line" | $PYTHON -c "
 import sys,json
 try:
     d=json.loads(sys.stdin.read())

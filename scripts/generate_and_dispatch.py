@@ -55,7 +55,11 @@ SOURCE_WHITELIST = [
     ("export.arxiv.org", "arxiv", 9, "arXiv"),
     ("semanticscholar.org", "semantic", 8, "Semantic Scholar"),
     ("britannica.com", "britannica", 7, "大英百科"),
+    ("patents.google.com", "patent", 7, "Google Patents"),
     ("baike.baidu.com", "baike", 6, "百度百科"),
+    ("36kr.com", "research", 6, "36氪"),
+    ("iresearch.cn", "research", 5, "艾瑞咨询"),
+    ("iresearchchina.com", "research", 5, "艾瑞咨询"),
     ("nih.gov", "nih", 5, "NIH"),
     ("zhihu.com", "zhihu", 4, "知乎"),
     (".edu", "edu", 3, "教育机构"),
@@ -109,7 +113,26 @@ def step0_series_expansion(pool: dict):
     return pool
 
 
-def step1_generate_seeds(pool: dict, target: int):
+def step0b_recycle_dead(pool: dict, max_retries: int = 2):
+    """回收 source_failed 种子：重置为 pending（给网络波动第二次机会）"""
+    recycled = 0
+    for key in list(pool.keys()):
+        if not isinstance(pool[key], dict):
+            continue
+        seeds = pool[key].get("seeds", [])
+        for s in seeds:
+            if s.get("status") in ("source_failed",):
+                retries = s.get("_recycles", 0)
+                if retries < max_retries:
+                    s["status"] = "pending"
+                    s["_recycles"] = retries + 1
+                    recycled += 1
+    if recycled:
+        store.write(pool)
+        print(f"  ♻️  回收 {recycled} 个 source_failed → pending (max_retries={max_retries})")
+
+
+def step1_generate_seeds(pool: dict, target: int, engine_status=None):
     base_keys = all_series_keys()
     cooling = json.loads(CHAPTER_COOLING_FILE.read_text()) if CHAPTER_COOLING_FILE.exists() else {}
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -142,15 +165,16 @@ def step1_generate_seeds(pool: dict, target: int):
             }
             data = pool[current_key]
         seeds = data.get("seeds", [])
-        total_seeds = len(seeds)
         pending_count = sum(1 for s in seeds if s.get("status") == "pending")
+        dead_count = sum(1 for s in seeds if s.get("status") in ("source_failed", "failed"))
+        active_total = len(seeds) - dead_count
         per_series = target // len(base_keys)
-        # 硬上限：total >= per_series 则不再补种
-        if total_seeds >= per_series:
+        # 硬上限：active 种子 ≥ per_series 则不再补种（排除 source_failed）
+        if active_total >= per_series:
             continue
-        needed = min(per_series - total_seeds, 10)  # 单周期最多补 10 个
-        print(f"  🌱 {current_key}: {total_seeds} total ({pending_count} pending), 需补 {needed} 个")
-        _generate_seeds_for(current_key, pool, needed, series_key)
+        needed = min(per_series - active_total, 10)
+        print(f"  🌱 {current_key}: {active_total} active (dead={dead_count}, pending={pending_count}), 需补 {needed} 个")
+        _generate_seeds_for(current_key, pool, needed, series_key, engine_status)
         # 首次生成种子记冷却（初始代 = 1 冷却）
         cooling_key = f"{series_key}ch"
         if cooling_key not in cooling:
@@ -189,25 +213,45 @@ def step1_generate_seeds(pool: dict, target: int):
             "avg_chars": pool[base_key].get("avg_chars", 450),
             "seeds": [],
         }
-        _generate_seeds_for(new_key, pool, max(1, target // len(base_keys) // 2), base_key)
+        _generate_seeds_for(new_key, pool, max(1, target // len(base_keys) // 2), base_key, engine_status)
         cooling[cooling_key] = today
     CHAPTER_COOLING_FILE.write_text(json.dumps(cooling, indent=2))
 
 
-def _generate_seeds_for(pool_key: str, pool: dict, needed: int, series_key: str):
+def _generate_seeds_for(pool_key: str, pool: dict, needed: int, series_key: str, engine_status=None):
     """为指定 pool_key 生成种子"""
     data = pool[pool_key]
     seeds = data.get("seeds", [])
-    existing_titles = [s.get("title", "") for s in seeds]
     s = get_series(series_key)
     if not s:
         return
+
+    # 收集全系列种子（跨章节：B1/B2/B3...）用于覆盖度计算 + 标题去重
+    from src.pipeline.seed_diversity import get_series_seeds, analyze_coverage
+    from config.series_definitions import get_subtopics
+    all_series_seeds = get_series_seeds(pool, series_key)
+    existing_titles = [s.get("title", "") for s in all_series_seeds]
+    coverage = analyze_coverage(series_key, all_series_seeds)
+    subtopics = get_subtopics(series_key)
+    covered = coverage.get("covered_topics", [])
+
+    # 章节信息
+    chapter_info = ""
+    if pool_key != series_key and pool_key.startswith(series_key):
+        ch_num = pool_key[len(series_key):]
+        if ch_num.isdigit():
+            chapter_info = f"第{ch_num}卷 · {pool_key}"
+
     prompt = build_seed_generation_prompt(
         series=series_key,
         topic=s.get("topic", ""),
         style=s.get("style", ""),
         existing_titles=existing_titles,
         needed=needed,
+        subtopics=subtopics,
+        covered_topics=covered,
+        chapter_info=chapter_info,
+        engine_status=engine_status,
     )
     raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
     if not raw:
@@ -306,43 +350,80 @@ def downgrade_kw(kw: str, level: int) -> str:
 import urllib.parse
 
 
+from src.utils.engine_check import check_api_engines  # noqa: E402
+
+
 async def check_connectivity(crawler) -> dict:
-    """启动时检查网络可达性
+    """启动时检查各搜索引擎可达性 + LLM 验证结果质量
 
-    Returns: {proxy_ok, ddg_ok, baidu_ok, local_count, has_fallback}
+    先硬测试（HTTP 可达 + 内容长度），再软测试（LLM 判断是否真实搜索结果）。
+    避免 DDG 返回图片页/验证码、百度返回空壳页骗过阈值。
+
+    Returns: {ddg_ok, baidu_ok, local_count, has_fallback}
     """
-    status = {"proxy_ok": False, "ddg_ok": False, "baidu_ok": False, "local_count": 0, "has_fallback": False}
+    status = {"ddg_ok": False, "baidu_ok": False, "local_count": 0, "has_fallback": False}
 
-    # 检查本地信源
+    # 本地信源（永远可用）
     local_dir = SCRIPT_DIR / "data" / "source_cache" / "local"
     if local_dir.exists():
         status["local_count"] = len([f for f in local_dir.iterdir() if f.is_file() and f.suffix not in (".json", ".yml", ".yaml")])
-
-    # 检查本地已翻译信源
     if REG_INDEX.exists():
         reg = json.loads(REG_INDEX.read_text())
-        local_translated = [s for s in reg.values() if s.get("source_type") == "local_translated"]
+        local_translated = [s for s in reg.values() if s.get("source_type") == "local_translated" and s.get("cache_path") and rel_to_abs(s["cache_path"]).exists()]
         if local_translated:
             status["local_count"] += len(local_translated)
-
     status["has_fallback"] = status["local_count"] > 0
 
+    # ── LLM 验证函数 ──
+    def _llm_validate(label: str, markdown: str, query: str) -> bool:
+        """请 LLM 判断抓取内容是否为有效搜索结果页"""
+        sample = markdown[:2000]
+        prompt = f"""你是一个搜索引擎质量审核员。以下是用 "{query}" 搜索 {label} 返回的页面内容（前 2000 字）。
+请判断这**是否是真实的搜索结果页**，而不是错误页、验证码、纯图片页或无结果的空壳。
+
+判断标准：
+- ✅ 真实搜索结果：包含多条相关链接、标题、摘要或正文片段
+- ❌ 无效：验证码页面、纯导航/广告、纯图片链接（无文字摘要）、空白/错误提示、或与搜索词完全无关的系统页面
+
+只回答一个字：真 或 假。不要解释。"""
+
+        try:
+            raw = call_xianka(prompt + f"\n\n---\n{sample}", max_tokens=16, temperature=0.1)
+            if raw and "真" in raw and "假" not in raw:
+                return True
+        except Exception:
+            pass
+        return False
+
     # DuckDuckGo
+    print("  ⏳ DuckDuckGo...")
     try:
-        r = await crawler.arun("https://html.duckduckgo.com/html/?q=test", {"timeout": 10})
+        r = await crawler.arun("https://html.duckduckgo.com/html/?q=dog+communication", {"timeout": 12})
         if r and r.markdown and len(r.markdown) > 100:
-            status["ddg_ok"] = True
-            status["proxy_ok"] = True
-    except Exception:
-        pass
+            if _llm_validate("DuckDuckGo", r.markdown, "dog communication"):
+                status["ddg_ok"] = True
+                print("    ✓")
+            else:
+                print("    ✗ LLM 判定无效（图片页/验证码/空壳）")
+        else:
+            print("    ✗ 硬测试失败")
+    except Exception as e:
+        print(f"    ✗ {type(e).__name__}")
 
     # 百度
+    print("  ⏳ 百度...")
     try:
-        r = await crawler.arun("https://www.baidu.com/s?wd=test", {"timeout": 8})
+        r = await crawler.arun("https://www.baidu.com/s?wd=狗沟通按钮", {"timeout": 10})
         if r and r.markdown and len(r.markdown) > 100:
-            status["baidu_ok"] = True
-    except Exception:
-        pass
+            if _llm_validate("百度", r.markdown, "狗沟通按钮"):
+                status["baidu_ok"] = True
+                print("    ✓")
+            else:
+                print("    ✗ LLM 判定无效（图片页/验证码/空壳）")
+        else:
+            print("    ✗ 硬测试失败")
+    except Exception as e:
+        print(f"    ✗ {type(e).__name__}")
 
     return status
 
@@ -448,6 +529,53 @@ async def search_arxiv(kw: str, max_results=8) -> list[dict]:
         return hits
     except Exception:
         return []
+
+
+async def search_patents(crawler, kw: str, max_results=6) -> list[dict]:
+    """搜索 Google Patents + 拉取专利摘要（crawler 搜索 + urllib 取全文）"""
+    import urllib.request, ssl
+    hits = []
+    # 1. crawler 搜索
+    search_url = f"https://patents.google.com/?q={kw.replace(' ', '+')}&num={max_results}"
+    try:
+        r = await crawler.arun(search_url)
+        if not r or not r.markdown:
+            return []
+        md = r.markdown
+    except Exception:
+        return []
+
+    # 2. 提取专利 ID
+    patent_ids = set(re.findall(r'([A-Z]{2}\d{6,12}[A-Z]?\d?)', md))
+    if not patent_ids:
+        return []
+
+    # 3. urllib 取每个专利的摘要 + 权利要求
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    for pid in sorted(patent_ids)[:max_results]:
+        try:
+            req = urllib.request.Request(
+                f"https://patents.google.com/patent/{pid}/en?output=plaintext",
+                headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+                text = resp.read().decode("utf-8", errors="ignore")
+        except Exception:
+            continue
+        if len(text) < 500:
+            continue
+        # 摘取摘要段落
+        abs_match = re.search(r'(?:abstract|summary|technical field)[:\s]+(.+?)(?:\n\n|\n[A-Z])', text, re.I | re.DOTALL)
+        abstract = abs_match.group(1).strip()[:2000] if abs_match else text[:2000]
+        hits.append({
+            "url": f"https://patents.google.com/patent/{pid}/en",
+            "title": f"Patent {pid}",
+            "snippet": abstract[:300],
+            "_raw_content": abstract,
+            "_is_prefetched": True,
+        })
+    return hits
 
 
 async def search_wikipedia(kw: str, max_results=6) -> list[dict]:
@@ -609,7 +737,7 @@ def llm_check_sufficiency(goal: str, sources: list[dict]) -> tuple[bool, str]:
     return result.get("sufficient", True), result.get("reason", "")
 
 
-async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
+async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_status=None):
     kw = seed.get("kw", "")
     goal = seed.get("goal", "")
     title = seed.get("title", "")
@@ -655,37 +783,84 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
                     break
     # ═════ 本地信源结束 ═════
 
-    if has_cn:
-        print(f"    🌏 中文 kw，优先百度")
-        for level in (0, 2, 3):
-            search_kw = downgrade_kw(kw, level) if level > 0 else kw
-            hits = await search_baidu(crawler, search_kw)
-            label = f"L{level}" if level > 0 else "L0"
-            print(f"    baidu({label}): {len(hits)} hits")
-            all_hits.extend(hits)
-            if len(all_hits) >= 3:
-                break
+    engine = seed.get("engine", "web")
+    if net_status is None:
+        net_status = {}
+
+    # ── 引擎路由：按 seed.engine 选择搜索后端 ──
+    if engine == "pubmed":
+        print(f"    🔬 PubMed 引擎")
+        hits = await search_pubmed(kw)
+        print(f"    pubmed: {len(hits)} hits")
+        for h in hits:
+            h["_is_prefetched"] = True  # 已含摘要，跳过 crawl
+        all_hits.extend(hits)
+        # PubMed 不够 → web 兜底
         if len(all_hits) < 3:
-            whits = await search_web(crawler, kw)
-            existing_urls = {h["url"] for h in all_hits}
-            for h in whits:
-                if h["url"] not in existing_urls:
-                    all_hits.append(h)
-                    existing_urls.add(h["url"])
-            print(f"    web: +{len(whits)}")
+            if net_status.get("baidu_ok", True):
+                bhits = await search_baidu(crawler, kw)
+                print(f"    baidu(兜底): +{len(bhits)}")
+                all_hits.extend(bhits)
+    elif engine == "arxiv":
+        print(f"    📄 arXiv 引擎")
+        hits = await search_arxiv(kw)
+        print(f"    arxiv: {len(hits)} hits")
+        all_hits.extend(hits)
+        if len(all_hits) < 3:
+            if net_status.get("baidu_ok", True):
+                bhits = await search_baidu(crawler, kw)
+                print(f"    baidu(兜底): +{len(bhits)}")
+                all_hits.extend(bhits)
+    elif engine == "patent":
+        print(f"    📜 Patent 引擎")
+        hits = await search_patents(crawler, kw)
+        print(f"    patent: {len(hits)} hits")
+        all_hits.extend(hits)
+        if len(all_hits) < 3:
+            if net_status.get("baidu_ok", True):
+                bhits = await search_baidu(crawler, kw)
+                print(f"    baidu(兜底): +{len(bhits)}")
+                all_hits.extend(bhits)
+    elif has_cn:
+        if net_status.get("baidu_ok", True):
+            print(f"    🌏 中文 kw，优先百度")
+            for level in (0, 2, 3):
+                search_kw = downgrade_kw(kw, level) if level > 0 else kw
+                hits = await search_baidu(crawler, search_kw)
+                label = f"L{level}" if level > 0 else "L0"
+                print(f"    baidu({label}): {len(hits)} hits")
+                all_hits.extend(hits)
+                if len(all_hits) >= 3:
+                    break
+        else:
+            print(f"    ⏭️ 百度不可达（预检），跳过")
+        if len(all_hits) < 3:
+            if net_status.get("ddg_ok", True):
+                whits = await search_web(crawler, kw)
+                existing_urls = {h["url"] for h in all_hits}
+                for h in whits:
+                    if h["url"] not in existing_urls:
+                        all_hits.append(h)
+                        existing_urls.add(h["url"])
+                print(f"    web: +{len(whits)}")
+            else:
+                print(f"    ⏭️ DDG 不可达（预检），跳过")
     else:
-        # 英文 kw：优先 Wikipedia API（不需要浏览器），其次百度
+        # 英文 kw + web 引擎：优先 Wikipedia API，其次百度
         whits = await search_wikipedia(kw)
         print(f"    wiki: {len(whits)} hits")
         all_hits.extend(whits)
         if len(all_hits) < 3:
-            bhits = await search_baidu(crawler, kw)
-            existing_urls = {h["url"] for h in all_hits}
-            for h in bhits:
-                if h["url"] not in existing_urls:
-                    all_hits.append(h)
-                    existing_urls.add(h["url"])
-            print(f"    baidu: +{len(bhits)}")
+            if net_status.get("baidu_ok", True):
+                bhits = await search_baidu(crawler, kw)
+                existing_urls = {h["url"] for h in all_hits}
+                for h in bhits:
+                    if h["url"] not in existing_urls:
+                        all_hits.append(h)
+                        existing_urls.add(h["url"])
+                print(f"    baidu: +{len(bhits)}")
+            else:
+                print(f"    ⏭️ 百度不可达（预检），跳过")
 
     if not all_hits:
         print(f"    ❌ 0 信源")
@@ -707,6 +882,18 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict):
     for hit in all_hits[:6]:
         if hit.get("_is_local"):
             raw_sources.append(hit)
+            continue
+        if hit.get("_is_prefetched"):
+            # PubMed/arXiv 已含摘要，直接使用，跳过爬取
+            if hit.get("_raw_content") and len(hit["_raw_content"]) >= 100:
+                raw_sources.append({
+                    "url": hit["url"],
+                    "title": hit.get("title", hit["url"]),
+                    "raw_content": hit["_raw_content"],
+                    "source_category": engine,
+                    "source_priority": 8,
+                    "source_label": engine.upper(),
+                })
             continue
         cat, pri, label = classify_url(hit["url"])
         page_title, content = await crawl_page(crawler, hit["url"])
@@ -838,13 +1025,31 @@ async def step2_dispatch(pool: dict, count: int):
     setup_logging(log_dir=LOGS_DIR)
     crawler = await get_crawler()
 
+    # 启动时预检搜索引擎可达性
+    print("🔍 网络预检...")
+    net_status = await check_connectivity(crawler)
+    engine_summary = []
+    if net_status["ddg_ok"]:
+        engine_summary.append("DDG ✓")
+    else:
+        engine_summary.append("DDG ✗")
+    if net_status["baidu_ok"]:
+        engine_summary.append("百度 ✓")
+    else:
+        engine_summary.append("百度 ✗")
+    print(f"  {' | '.join(engine_summary)} | 本地信源: {net_status['local_count']} 个")
+    glog.info(f"网络预检: {net_status}")
+    print()
+
     all_pending = []
     for series in _get_priority():
-        if series not in pool or not isinstance(pool[series], dict):
-            continue
-        seeds = pool[series].get("seeds", [])
-        pending = [s for s in seeds if s.get("status") == "pending"]
-        all_pending.extend([(series, s) for s in pending])
+        chapter_keys = sorted(k for k in pool if k.startswith(series) and (k == series or k[len(series):].isdigit()))
+        for ck in chapter_keys if chapter_keys else [series]:
+            if ck not in pool or not isinstance(pool[ck], dict):
+                continue
+            seeds = pool[ck].get("seeds", [])
+            pending = [s for s in seeds if s.get("status") == "pending"]
+            all_pending.extend([(series, s) for s in pending])
 
     import random; random.shuffle(all_pending)
 
@@ -857,7 +1062,7 @@ async def step2_dispatch(pool: dict, count: int):
         print(f"\n  [{series_key}] {title}")
         print(f"  kw: {kw}")
 
-        result = await dispatch_one(crawler, seed, series_key, pool)
+        result = await dispatch_one(crawler, seed, series_key, pool, net_status)
         if result:
             cid, sufficient, reason = result
             seed["status"] = "dispatched"
@@ -904,8 +1109,19 @@ def main():
     pool = step0_series_expansion(pool)
     print()
 
+    # API 引擎预检（种子生成前，不需要 crawler）
+    print("🔍 引擎可用性预检...")
+    engine_status = check_api_engines()
+    parts = []
+    for eng in ("pubmed", "arxiv", "web"):
+        mark = "✓" if engine_status[eng] else "✗"
+        parts.append(f"{eng} {mark}")
+    print(f"  {' | '.join(parts)}")
+    print()
+
     print("阶段一: 种子生成")
-    step1_generate_seeds(pool, args.target)
+    step0b_recycle_dead(pool)
+    step1_generate_seeds(pool, args.target, engine_status)
     print()
 
     print("阶段二: 信源缓存 + 卡片派发 (LLM增强)")

@@ -12,7 +12,7 @@ from config.settings import rel_to_abs
 logger = get_logger("research")
 
 
-async def execute(ctx: CardContext) -> CardContext:
+async def execute(ctx: CardContext, context: str = "") -> CardContext:
     cid = ctx.card_id
     registry = get_registry()
 
