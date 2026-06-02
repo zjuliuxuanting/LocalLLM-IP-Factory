@@ -1,6 +1,6 @@
 """S5 修订阶段
 
-调 xianka 模型基于自审结果修订初稿（纯文本）。
+调主模型基于自审结果修订初稿（纯文本）。
 """
 from src.pipeline.card_state import CardContext
 from src.models.gateway import call_xianka, clean_response

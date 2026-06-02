@@ -1,6 +1,6 @@
 """S4 自审阶段
 
-调 douhua 模型对初稿进行多维度自审（JSON）。
+调辅助模型对初稿进行多维度自审（JSON）。
 自审结果用于指导 S5 修订，即使判 fail 也继续推进——由 S5 来修改。
 """
 from src.pipeline.card_state import CardContext

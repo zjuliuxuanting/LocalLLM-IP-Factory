@@ -47,7 +47,7 @@ DIMENSIONS = [
         weight=0.25,
         hard_gate=5.0,
         soft_gate=None,
-        description="事实断言是否可在信源中验证（调 douhua 评估）",
+        description="事实断言是否可在信源中验证（调辅助模型评估）",
     ),
     DimensionSpec(
         name="style",

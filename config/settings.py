@@ -48,8 +48,8 @@ NODES_FILE = KG_DIR / "nodes.json"
 EDGES_FILE = KG_DIR / "edges.json"
 SEMANTIC_STATE_FILE = KG_DIR / "semantic_state.json"
 
-# ── 本地模型 Gateway（3080 单端口） ──
-# ⚠️ 3080 只有 1 个推理进程端口，xianka 和 douhua 共享同一端口，通过不同 temperature/system_prompt 区分行为
+# ── 本地模型 Gateway（单端口 GPU） ──
+# ⚠️ GPU 只有 1 个推理进程端口，xianka 和 douhua 共享同一端口，通过不同 temperature/system_prompt 区分行为
 GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://127.0.0.1:8080")
 XIANKA_GATEWAY = os.environ.get("XIANKA_GATEWAY", GATEWAY_URL)
 DOUHUA_GATEWAY = os.environ.get("DOUHUA_GATEWAY", GATEWAY_URL)
@@ -64,8 +64,8 @@ KG_GATEWAY = os.environ.get("KG_GATEWAY", XIANKA_GATEWAY)
 # ── 代理配置 ──
 PROXY = os.environ.get("PROXY", "http://127.0.0.1:7897")
 
-# ── 流水线参数（单端口 3080） ──
-# ⚠️ 3080 只有 1 个推理进程端口，所有 GPU 调用严格串行
+# ── 流水线参数（单端口 GPU）──
+# ⚠️ GPU 只有 1 个推理进程端口，所有 GPU 调用严格串行
 TARGET_PENDING = 300
 MAX_RETRIES = 1
 RETRY_COOLDOWN = 30

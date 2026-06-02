@@ -1,6 +1,6 @@
 """S6 润色阶段
 
-调 douhua 模型做最终文字润色（纯文本）。
+调辅助模型做最终文字润色（纯文本）。
 """
 from src.pipeline.card_state import CardContext
 from src.models.gateway import call_xianka, clean_response

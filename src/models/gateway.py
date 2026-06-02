@@ -25,7 +25,7 @@ def call_xianka(
     temperature: float = TEMPERATURE,
     structured: bool = False,
 ) -> Optional[str]:
-    """调用显卡妹模型"""
+    """调用主模型"""
     if structured:
         resp = _xianka.generate_structured(
             prompt, model=XIANKA_MODEL,
@@ -45,7 +45,7 @@ def call_douhua(
     temperature: float = 0.8,
     structured: bool = False,
 ) -> Optional[str]:
-    """调用豆花模型"""
+    """调用辅助模型"""
     if structured:
         resp = _douhua.generate_structured(
             prompt, model=DOUHUA_MODEL,

@@ -1,6 +1,6 @@
 """S7 事实核查阶段
 
-调 douhua 模型逐条核查正文中的事实断言与信源的一致性（JSON）。
+调辅助模型逐条核查正文中的事实断言与信源的一致性（JSON）。
 """
 from src.pipeline.card_state import CardContext
 from src.models.gateway import call_xianka

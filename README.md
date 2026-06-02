@@ -1,6 +1,6 @@
 # LocalLLM-IP-Factory
 
-> **硬件：** 3080 20GB · 模型：A3B q3-xxs（qwen35b）
+
 > **目标：** 榨干本地 LLM 算力，全自动内容流水线
 > **定位：** 用本地 LLM 按系列批量生产垂直领域科普/故事/调研/方法论等内容卡片
 
@@ -43,7 +43,7 @@ bash scripts/pipeline_all.sh --target 300 --count 10
 > - 风格描述要能指导 LLM 的写作语气
 > - 种子生成会读取此文件来构建 prompt，所以定义要清晰、具体
 >
-> **硬件约束：** 3080 20GB · 模型 A3B q3-xxs（qwen35b）
+
 > **项目目标：** 榨干本地 LLM 算力，全自动内容流水线
 >
 > **输出格式参考：** 见下方代码块"
@@ -139,7 +139,6 @@ bash scripts/pipeline_all.sh --target 300 --count 5 --repeat 5 --interval 30
 `pipeline_all.sh` 会自动启动。如需手动启动：
 
 ```bash
-# 启动 Dashboard + 配置 API（端口 8899）
 python3 scripts/config_api.py --port 8899
 
 # 浏览器打开
@@ -147,7 +146,23 @@ python3 scripts/config_api.py --port 8899
 #   配置:   http://localhost:8899/output/config.html
 ```
 
-配置页面支持在线修改 LLM 地址、模型、代理等参数，保存后写入 `config/.env`，下次运行生效。
+### 配置页功能
+
+- **在线修改** LLM 地址、模型、API 密钥、代理，保存写入 `config/.env`
+- **实时状态** — 右上角显示 LLM 连接状态（已连接/不可达/未配置），走服务端代理避免跨域
+- **测试连接** — 深度学习测试：先 ping 搜索引擎 API（PubMed/arXiv/Patent），再用 LLM 验证搜索结果是否为真实内容（防止 DDG 返回图片页骗过阈值）
+- **引擎预检** — 种子生成前自动检测各引擎可用性，不可用引擎自动跳过并通知 LLM 换用替代引擎
+
+### 信源引擎
+
+| 引擎 | 后端 | 适用场景 |
+|------|------|---------|
+| `pubmed` | NIH E-utilities API | 科普/科研 |
+| `arxiv` | arXiv API | 技术/前沿 |
+| `patent` | Google Patents | 调研/产品 |
+| `web` | 百度 / DDG / Wikipedia | 新闻/故事/问答 |
+
+种子生成时 LLM 会根据引擎可用性和 kw 指引自动选择最合适的引擎。
 
 ## 数据流
 
@@ -190,7 +205,7 @@ python3 scripts/translate_sources.py
 bash scripts/pipeline_all.sh --target 300 --count 10
 ```
 
-匹配规则：`translate_sources.py` 在翻译时让显卡妹从文档内容中提取英文关键词，注册到 `source_registry`。`dispatch_one()` 用种子关键词与注册关键词匹配——有交集即匹配，优先作为信源（优先级 10，最高）。
+匹配规则：`translate_sources.py` 在翻译时让LLM从文档内容中提取英文关键词，注册到 `source_registry`。`dispatch_one()` 用种子关键词与注册关键词匹配——有交集即匹配，优先作为信源（优先级 10，最高）。
 
 `reset_all.py` 会保留 `local/` 目录不变，只清空运行产生的缓存。
 

@@ -1,6 +1,6 @@
 """S2 大纲设计阶段
 
-调 xianka 模型生成结构化内容大纲（JSON）。
+调主模型生成结构化内容大纲（JSON）。
 """
 from src.pipeline.card_state import CardContext
 from src.models.gateway import call_xianka

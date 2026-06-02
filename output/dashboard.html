@@ -106,7 +106,7 @@ async function R(){
     let lines=log.split('\n').filter(l=>l.trim()).slice(-30);
     let lb=document.getElementById('log-box');lb.innerHTML=lines.map(l=>{
       let cls='',text=l;
-      try{let j=JSON.parse(l);text=j.msg||l;if(j.level==='ERROR'||j.level==='WARNING')cls='err';else if(j.level==='WARNING')cls='warn';else cls='info'}catch(e){}
+      try{let j=JSON.parse(l);let t=j.time||'';text=(t?t+' ':'')+(j.msg||l);if(j.level==='ERROR'||j.level==='WARNING')cls='err';else if(j.level==='WARNING')cls='warn';else cls='info'}catch(e){}
       if(text.includes('失败')||text.includes('✗'))cls='err';else if(text.includes('⚠'))cls='warn';else if(text.includes('✅')||text.includes('✓')||text.includes('▶'))cls='info';
       return `<div class="${cls}">${text.replace(/</g,'&lt;')}</div>`
     }).join('');lb.scrollTop=lb.scrollHeight;

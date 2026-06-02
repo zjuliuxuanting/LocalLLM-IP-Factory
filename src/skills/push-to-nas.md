@@ -28,4 +28,4 @@ python3 scripts/push_to_nas.py
 ## 禁止
 
 - src/ config/ 下所有 .py 文件
-- 调显卡妹 / GPU
+- 调LLM / GPU
