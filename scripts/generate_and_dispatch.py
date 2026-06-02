@@ -380,6 +380,9 @@ async def search_baidu(crawler, kw: str, max_results=5) -> list[dict]:
     hits = []
     for u in urls:
         u = u.rstrip(".,;:)!?")
+        # 跳过图片、CSS、JS 等资源文件
+        if any(u.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".css", ".js", ".woff", ".ttf")):
+            continue
         if not is_valid_url(u):
             continue
         if u in seen:
@@ -550,6 +553,10 @@ async def crawl_page(crawler, url: str) -> tuple[str, str]:
         if not title and r.metadata:
             title = r.metadata.get("title", "")
     if len(md) < 200:
+        return "", ""
+    # 过滤二进制垃圾（非可见字符占比 >30% 则丢弃）
+    non_printable = sum(1 for c in md[:500] if ord(c) < 32 and c not in '\n\r\t')
+    if non_printable > len(md[:500]) * 0.3:
         return "", ""
     return title, md[:12000]
 
