@@ -142,33 +142,9 @@ def step1_generate_seeds(pool: dict, target: int, engine_status=None):
     cooling = json.loads(CHAPTER_COOLING_FILE.read_text()) if CHAPTER_COOLING_FILE.exists() else {}
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     for series_key in base_keys:
-        # 确定当前最新章节的 pool key
-        chapter_keys = sorted(k for k in pool if k.startswith(series_key) and (k == series_key or k[len(series_key):].isdigit()))
-        if series_key in pool and chapter_keys and chapter_keys[-1] == series_key:
-            # 旧版: 把 base key 下的种子迁移到 {series_key}1
-            old_seeds = pool[series_key].get("seeds", [])
-            if old_seeds:
-                pool[f"{series_key}1"] = {
-                    "topic": pool[series_key].get("topic", ""),
-                    "style": pool[series_key].get("style", ""),
-                    "forbidden": pool[series_key].get("forbidden", []),
-                    "avg_chars": pool[series_key].get("avg_chars", 450),
-                    "seeds": old_seeds,
-                }
-                chapter_keys = [f"{series_key}1"]
-            pool[series_key]["seeds"] = []  # base key 不再存种子
-        current_key = chapter_keys[-1] if chapter_keys else f"{series_key}1"
-        data = pool.get(current_key) or pool.get(series_key)
-        if not data:
-            current_key = f"{series_key}1"
-            pool[current_key] = {
-                "topic": pool.get(series_key, {}).get("topic", ""),
-                "style": pool.get(series_key, {}).get("style", ""),
-                "forbidden": pool.get(series_key, {}).get("forbidden", []),
-                "avg_chars": pool.get(series_key, {}).get("avg_chars", 450),
-                "seeds": [],
-            }
-            data = pool[current_key]
+        if series_key not in pool or not isinstance(pool[series_key], dict):
+            continue
+        data = pool[series_key]
         seeds = data.get("seeds", [])
         pending_count = sum(1 for s in seeds if s.get("status") == "pending")
         per_series = target // len(base_keys)
@@ -176,49 +152,8 @@ def step1_generate_seeds(pool: dict, target: int, engine_status=None):
         if needed <= 0:
             continue
         needed = min(needed, 10)
-        ts_print(f"  🌱 {current_key}: {pending_count} pending, 需补 {needed} 个")
-        _generate_seeds_for(current_key, pool, needed, series_key, engine_status)
-        # 首次生成种子记冷却（初始代 = 1 冷却）
-        cooling_key = f"{series_key}ch"
-        if cooling_key not in cooling:
-            cooling[cooling_key] = today
-
-    # ── 系列章节轮换：已耗尽且冷却 ≥3 天的 → 生成下一章种子 ──
-    cooling = json.loads(CHAPTER_COOLING_FILE.read_text()) if CHAPTER_COOLING_FILE.exists() else {}
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    for base_key in base_keys:
-        if base_key not in pool:
-            continue
-        # 找该系列的最新章节
-        chapter_keys = sorted(k for k in pool if k.startswith(base_key) and (k == base_key or k[len(base_key):].isdigit()))
-        if not chapter_keys:
-            continue
-        latest = chapter_keys[-1]
-        latest_seeds = pool[latest].get("seeds", [])
-        remaining = sum(1 for s in latest_seeds if s.get("status") == "pending")
-        if remaining > 0:
-            continue  # 还有 pending 种子，不轮换
-        cooling_key = f"{base_key}ch"
-        last_date = cooling.get(cooling_key, "")
-        if last_date and last_date >= today:
-            continue  # 冷却中
-        next_ch = 1
-        for ck in chapter_keys:
-            num = ck[len(base_key):]
-            if num.isdigit() and int(num) >= next_ch:
-                next_ch = int(num) + 1
-        new_key = f"{base_key}{next_ch}"
-        ts_print(f"  🔄 {base_key} 种子耗尽 → 生成 {new_key} 种子")
-        pool[new_key] = {
-            "topic": pool[base_key].get("topic", ""),
-            "style": pool[base_key].get("style", ""),
-            "forbidden": pool[base_key].get("forbidden", []),
-            "avg_chars": pool[base_key].get("avg_chars", 450),
-            "seeds": [],
-        }
-        _generate_seeds_for(new_key, pool, max(1, target // len(base_keys) // 2), base_key, engine_status)
-        cooling[cooling_key] = today
-    CHAPTER_COOLING_FILE.write_text(json.dumps(cooling, indent=2))
+        ts_print(f"  🌱 {series_key}: {pending_count} pending, 需补 {needed} 个")
+        _generate_seeds_for(series_key, pool, needed, series_key, engine_status)
 
 
 def _generate_seeds_for(pool_key: str, pool: dict, needed: int, series_key: str, engine_status=None):
@@ -1053,13 +988,11 @@ async def step2_dispatch(pool: dict, count: int):
 
     all_pending = []
     for series in _get_priority():
-        chapter_keys = sorted(k for k in pool if k.startswith(series) and (k == series or k[len(series):].isdigit()))
-        for ck in chapter_keys if chapter_keys else [series]:
-            if ck not in pool or not isinstance(pool[ck], dict):
-                continue
-            seeds = pool[ck].get("seeds", [])
-            pending = [s for s in seeds if s.get("status") == "pending"]
-            all_pending.extend([(series, s) for s in pending])
+        if series not in pool or not isinstance(pool[series], dict):
+            continue
+        seeds = pool[series].get("seeds", [])
+        pending = [s for s in seeds if s.get("status") == "pending"]
+        all_pending.extend([(series, s) for s in pending])
 
     import random; random.shuffle(all_pending)
 
