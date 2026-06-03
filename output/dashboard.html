@@ -122,24 +122,30 @@ async function G(){
   let nodes=await L('data/knowledge_graph/nodes.json');
   let edges=await L('data/knowledge_graph/edges.json');
   if(!nodes||!edges||!nodes.length){document.getElementById('kg-info').textContent='暂无数据';return;}
-  document.getElementById('kg-info').textContent=nodes.length+'节点 · '+edges.length+'边';
+  // 统计连接数，只保留有连接的核心节点（卡+top锚点，上限150）
+  let deg={};edges.forEach(e=>{deg[e.from]=(deg[e.from]||0)+1;deg[e.to]=(deg[e.to]||0)+1});
+  let cards=nodes.filter(n=>n.type==='card');
+  let anchors=nodes.filter(n=>n.type!=='card').sort((a,b)=>(deg[b.id]||0)-(deg[a.id]||0));
+  let topN=cards.concat(anchors.slice(0,Math.max(0,120-cards.length)));
+  let keep=new Set(topN.map(n=>n.id));
+  document.getElementById('kg-info').textContent=nodes.length+'节点 · '+edges.length+'边 → 显示'+keep.size+'核心';
   let w=document.getElementById('kg-container').clientWidth,h=450;
   let svg=d3.select('#kg-container').selectAll('svg').data([0]);
   svg=svg.join('svg').attr('width',w).attr('height',h).style('background','#0a0a14');
   let g=svg.selectAll('g').data([0]).join('g');
   let seriesColor=d3.scaleOrdinal().domain(['B','R','M','S','Q','F','P']).range(['#4A90D9','#E85D75','#50B86C','#9B59B6','#F39C12','#E67E22','#1ABC9C']);
   let nmap={};nodes.forEach(n=>nmap[n.id]=n);
-  let nds=nodes.map(n=>({id:n.id,label:n.label||n.id,type:n.type||'card',series:(n.id||'')[0],r:n.type==='card'?7:4}));
-  let lks=edges.filter(e=>nmap[e.from]&&nmap[e.to]).map(e=>({source:e.from,target:e.to}));
+  let nds=topN.map(n=>({id:n.id,label:n.label||n.id,type:n.type||'card',series:(n.id||'')[0],r:n.type==='card'?5:3}));
+  let lks=edges.filter(e=>keep.has(e.from)&&keep.has(e.to)).map(e=>({source:e.from,target:e.to}));
   let sim=d3.forceSimulation(nds)
-    .force('link',d3.forceLink(lks).distance(50).strength(0.2))
-    .force('charge',d3.forceManyBody().strength(-100))
+    .force('link',d3.forceLink(lks).distance(40).strength(0.15))
+    .force('charge',d3.forceManyBody().strength(-80))
     .force('center',d3.forceCenter(w/2,h/2))
-    .force('collide',d3.forceCollide(10));
-  let link=g.selectAll('line').data(lks).join('line').attr('stroke','#333').attr('stroke-width',0.7).attr('stroke-opacity',0.4);
+    .force('collide',d3.forceCollide(8));
+  let link=g.selectAll('line').data(lks).join('line').attr('stroke','#333').attr('stroke-width',0.6).attr('stroke-opacity',0.35);
   let node=g.selectAll('circle').data(nds).join('circle')
     .attr('r',d=>d.r).attr('fill',d=>d.type==='card'?seriesColor(d.series):'#555')
-    .attr('stroke',d=>d.type==='card'?'#fff':'#444').attr('stroke-width',d=>d.type==='card'?1:0.5)
+    .attr('stroke',d=>d.type==='card'?'#fff':'#444').attr('stroke-width',0.5)
     .style('cursor','pointer')
     .call(d3.drag().on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;}).on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
   node.append('title').text(d=>(d.type==='card'?d.id+': ':'')+d.label);
