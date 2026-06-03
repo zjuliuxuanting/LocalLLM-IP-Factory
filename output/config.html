@@ -424,6 +424,18 @@ body::after {
     </div>
   </div>
 
+  <div class="card" style="margin-top:20px">
+    <div class="section-label">&#x1F3AF; 产出方向</div>
+    <div class="field-group">
+      <label class="field-label">本轮方向（注入种子生成 prompt，留空则无影响）</label>
+      <textarea id="direction-text" class="field-input field-mono" style="height:60px;resize:vertical" placeholder="例：近几轮多写行为学实证研究，减少主观叙事。"></textarea>
+    </div>
+    <div class="form-buttons">
+      <button type="button" id="btn-direction-save" class="btn btn-primary">保存方向</button>
+      <span id="direction-status" style="font-size:11px;color:#50B86C;margin-left:10px;display:none">已更新 ✓</span>
+    </div>
+  </div>
+
   <div class="footer-note">配置保存后自动写入 config/.env，下次运行 pipeline 生效</div>
 
 </div>
@@ -568,6 +580,16 @@ document.querySelectorAll('.field-input').forEach(inp => {
   inp.addEventListener('input', () => { inp._touched = true; });
 });
 
+// ── 方向加载/保存 ──
+async function loadDirection(){
+  try{let r=await fetch('/api/direction');if(r.ok){let d=await r.json();$('direction-text').value=d.text||'';}}catch(e){}
+}
+async function saveDirection(){
+  let text=$('direction-text').value.trim();
+  try{let r=await fetch('/api/direction',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});if(r.ok){let s=$('direction-status');s.style.display='inline';setTimeout(()=>s.style.display='none',2000);}}catch(e){}
+}
+$('btn-direction-save').addEventListener('click', saveDirection);
+
 // ── bind buttons ──
 $('btn-save').addEventListener('click', saveConfig);
 $('btn-test').addEventListener('click', testLLM);
@@ -582,6 +604,7 @@ document.addEventListener('keydown', (e) => {
 
 // ── init ──
 loadConfig().then(() => checkStatus());
+loadDirection();
 </script>
 </body>
 </html>

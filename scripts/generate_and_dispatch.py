@@ -142,8 +142,10 @@ def step0b_recycle_dead(pool: dict, max_retries: int = 2):
 
 def step1_generate_seeds(pool: dict, target: int, engine_status=None):
     base_keys = all_series_keys()
-    cooling = json.loads(CHAPTER_COOLING_FILE.read_text()) if CHAPTER_COOLING_FILE.exists() else {}
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    direction_file = SCRIPT_DIR / "data" / "direction.txt"
+    direction = direction_file.read_text().strip() if direction_file.exists() else ""
+    if direction:
+        ts_print(f"  🎯 本轮方向: {direction}")
     for series_key in base_keys:
         if series_key not in pool or not isinstance(pool[series_key], dict):
             continue
@@ -156,10 +158,10 @@ def step1_generate_seeds(pool: dict, target: int, engine_status=None):
             continue
         needed = min(needed, 10)
         ts_print(f"  🌱 {series_key}: {pending_count} pending, 需补 {needed} 个")
-        _generate_seeds_for(series_key, pool, needed, series_key, engine_status)
+        _generate_seeds_for(series_key, pool, needed, series_key, engine_status, direction)
 
 
-def _generate_seeds_for(pool_key: str, pool: dict, needed: int, series_key: str, engine_status=None):
+def _generate_seeds_for(pool_key: str, pool: dict, needed: int, series_key: str, engine_status=None, direction: str = ""):
     """为指定 pool_key 生成种子"""
     data = pool[pool_key]
     seeds = data.get("seeds", [])
@@ -193,6 +195,7 @@ def _generate_seeds_for(pool_key: str, pool: dict, needed: int, series_key: str,
         covered_topics=covered,
         chapter_info=chapter_info,
         engine_status=engine_status,
+        direction=direction,
     )
     raw = call_xianka(prompt, max_tokens=4096, temperature=0.8)
     if not raw:

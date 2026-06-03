@@ -83,6 +83,7 @@ def build_seed_generation_prompt(
     covered_topics: Optional[List[str]] = None,
     chapter_info: str = "",
     engine_status: Optional[dict] = None,
+    direction: str = "",
 ) -> str:
     """构建种子生成 prompt
 
@@ -130,6 +131,10 @@ def build_seed_generation_prompt(
 - 或从全新角度重新组织已有话题（更深入、更交叉、更当代）
 """
 
+    direction_note = ""
+    if direction:
+        direction_note = f"\n## 🎯 本轮方向调整（最高优先级）\n{direction}\n"
+
     engine_guide = ""
     if engine_status:
         lines = []
@@ -156,7 +161,7 @@ def build_seed_generation_prompt(
 - Goal 要求: {goal_rule}
 - 搜索词要求: {kw_rule}
 - 推荐引擎: {engine_pref}
-{chapter_note}{engine_guide}{coverage_guide}
+{chapter_note}{direction_note}{engine_guide}{coverage_guide}
 ## 核心 IP 定位
 跨物种沟通、语言学习、动物认知、行为科学、人宠互动
 
