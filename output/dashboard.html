@@ -73,7 +73,14 @@ h1{font-size:18px}h1 span{color:#666;font-size:12px;font-weight:normal}
     <div class="log-box" id="log-box"><span style="color:#555">等待日志...</span></div>
   </div>
 </div>
+<div class="grid">
+  <div class="card" style="grid-column:1/-1">
+    <h2>🧠 知识图谱 <span id="kg-info" style="font-size:10px;color:#666"></span></h2>
+    <div id="kg-container" style="width:100%;height:450px;background:#0a0a14;border-radius:6px;overflow:hidden;cursor:grab"></div>
+  </div>
+</div>
 <div class="status" id="status">⏳</div>
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <script>
 const C={B:'#4A90D9',R:'#E85D75',M:'#50B86C',S:'#9B59B6',Q:'#F39C12',F:'#E67E22',P:'#1ABC9C',D:'#3498DB',T:'#E74C3C',U:'#2ECC71',V:'#95A5A6',W:'#D35400'};
 async function L(p){try{let r=await fetch('../'+p,{cache:'no-store'});return r.ok?r.json():null}catch(e){return null}}
@@ -82,27 +89,21 @@ function B(d,k){let h='';for(let[s,o]of Object.entries(d).sort()){let p=Math.rou
 let _lastLogLen=0;
 async function R(){
   let seed=await L('data/seed_pool.json'),cards=await L('data/queue/cards.json'),reg=await L('data/source_registry/index.json');
-  // S1
   let ss={},ts=0,tp=0,td=0;
   if(seed)for(let[k,v]of Object.entries(seed)){if(!v||typeof v!=='object')continue;let p=0,d=0;(v.seeds||[]).forEach(s=>{if(s.status==='pending')p++;else if(s.status==='dispatched')d++});if(v.seeds?.length)ss[k]={total:v.seeds.length,pending:p,dispatched:d};ts+=v.seeds?.length||0;tp+=p;td+=d}
   document.getElementById('s1-total').textContent=ts;document.getElementById('s1-pending').textContent=tp;document.getElementById('s1-dispatched').textContent=td;document.getElementById('seed-bars').innerHTML=B(ss,'dispatched');
-  // S2
   let rc=reg?Object.keys(reg).length:0,sf=new Set(),ready=0,nosrc=0,ff=0,sfail=0;
   (cards?.cards||[]).forEach(c=>{let s=c.status||'';if(s==='ready')ready++;else if(s.startsWith('pending_no'))nosrc++;else if(s==='failed')ff++;else if(s==='source_failed')sfail++;(c.source_files||[]).forEach(f=>sf.add(f))});
   document.getElementById('s2-registry').textContent=rc;document.getElementById('s2-cache').textContent=sf.size;document.getElementById('s2-ready').textContent=ready;document.getElementById('s2-nosrc').textContent=nosrc;document.getElementById('s2-failed').textContent=ff;document.getElementById('s2-sourcefail').textContent=sfail;
-  // S3
   let cs={},tc=0,dn=0,fl=0;(cards?.cards||[]).forEach(c=>{let s=c.section||'?';if(!cs[s])cs[s]={total:0,done:0};cs[s].total++;tc++;if(c.status==='done'){cs[s].done++;dn++}else if(c.status==='failed')fl++});
   document.getElementById('s3-total').textContent=tc;document.getElementById('s3-done').textContent=dn;document.getElementById('s3-failed').textContent=fl;
   let pct=tc?(dn/tc*100).toFixed(0):0;document.getElementById('card-progress').textContent=`完成率: ${pct}% (${dn}/${tc})`;
   document.getElementById('card-bars').innerHTML=B(cs,'done');
-  // daemon 状态
-  let pidText=await T('.daemon.pid');let pid=pidText.trim();
   let di=document.getElementById('daemon-indicator'),ds=document.getElementById('daemon-status');
-  if(pid){let alive=await T('.daemon.pid').then(()=>true).catch(()=>false);di.innerHTML=`<span class="daemon-dot daemon-running"></span><span id="daemon-status">运行中 PID=${pid}</span>`}else{di.innerHTML=`<span class="daemon-dot daemon-stopped"></span><span id="daemon-status">未运行</span>`}
-  // 日志（pipeline.jsonl 结构化 JSON）
+  let pidText=await T('.daemon.pid');let pid=pidText.trim();
+  if(pid){di.innerHTML=`<span class="daemon-dot daemon-running"></span><span id="daemon-status">运行中 PID=${pid}</span>`}else{di.innerHTML=`<span class="daemon-dot daemon-stopped"></span><span id="daemon-status">未运行</span>`}
   let log=await T('output/logs/pipeline.jsonl');
-  if(log&&log.length>_lastLogLen){
-    _lastLogLen=log.length;
+  if(log&&log.length>_lastLogLen){_lastLogLen=log.length;
     let lines=log.split('\n').filter(l=>l.trim()).slice(-30);
     let lb=document.getElementById('log-box');lb.innerHTML=lines.map(l=>{
       let cls='',text=l;
@@ -114,6 +115,40 @@ async function R(){
   }
   document.getElementById('ts').textContent=new Date().toLocaleString('zh-CN');document.getElementById('status').textContent='🔄 3s';
 }R();setInterval(R,3000);
+
+// ── 知识图谱（D3 force layout）──
+let kgFirst=true;
+async function G(){
+  let nodes=await L('data/knowledge_graph/nodes.json');
+  let edges=await L('data/knowledge_graph/edges.json');
+  if(!nodes||!edges||!nodes.length){document.getElementById('kg-info').textContent='暂无数据';return;}
+  document.getElementById('kg-info').textContent=nodes.length+'节点 · '+edges.length+'边';
+  let w=document.getElementById('kg-container').clientWidth,h=450;
+  let svg=d3.select('#kg-container').selectAll('svg').data([0]);
+  svg=svg.join('svg').attr('width',w).attr('height',h).style('background','#0a0a14');
+  let g=svg.selectAll('g').data([0]).join('g');
+  let seriesColor=d3.scaleOrdinal().domain(['B','R','M','S','Q','F','P']).range(['#4A90D9','#E85D75','#50B86C','#9B59B6','#F39C12','#E67E22','#1ABC9C']);
+  let nmap={};nodes.forEach(n=>nmap[n.id]=n);
+  let nds=nodes.map(n=>({id:n.id,label:n.label||n.id,type:n.type||'card',series:(n.id||'')[0],r:n.type==='card'?7:4}));
+  let lks=edges.filter(e=>nmap[e.from]&&nmap[e.to]).map(e=>({source:e.from,target:e.to}));
+  let sim=d3.forceSimulation(nds)
+    .force('link',d3.forceLink(lks).distance(50).strength(0.2))
+    .force('charge',d3.forceManyBody().strength(-100))
+    .force('center',d3.forceCenter(w/2,h/2))
+    .force('collide',d3.forceCollide(10));
+  let link=g.selectAll('line').data(lks).join('line').attr('stroke','#333').attr('stroke-width',0.7).attr('stroke-opacity',0.4);
+  let node=g.selectAll('circle').data(nds).join('circle')
+    .attr('r',d=>d.r).attr('fill',d=>d.type==='card'?seriesColor(d.series):'#555')
+    .attr('stroke',d=>d.type==='card'?'#fff':'#444').attr('stroke-width',d=>d.type==='card'?1:0.5)
+    .style('cursor','pointer')
+    .call(d3.drag().on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;}).on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+  node.append('title').text(d=>(d.type==='card'?d.id+': ':'')+d.label);
+  sim.on('tick',()=>{link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);node.attr('cx',d=>d.x).attr('cy',d=>d.y);});
+  let zoom=d3.zoom().scaleExtent([0.3,5]).on('zoom',e=>g.attr('transform',e.transform));
+  svg.call(zoom);
+  if(kgFirst){let t=d3.zoomIdentity.translate(w/2,h/2).scale(0.55).translate(-w/2,-h/2);svg.call(zoom.transform,t);kgFirst=false;}
+}
+G();setInterval(G,15000);
 </script>
 </body>
 </html>
