@@ -708,10 +708,10 @@ async def dispatch_one(crawler, seed: dict, series_key: str, pool: dict, net_sta
         for src in local_sources:
             src_kws = {k.lower() for k in src.get("keywords", []) if len(k) >= 3}
             matched = kw_words & src_kws
-            # Jaccard 相似度 ≥ 0.25 才接受
+            # Jaccard 相似度 ≥ 0.15 且至少 1 个匹配
             union = kw_words | src_kws
             score = len(matched) / len(union) if union else 0
-            if score < 0.25:
+            if score < 0.15 or len(matched) < 1:
                 continue
             if matched:
                 try:
