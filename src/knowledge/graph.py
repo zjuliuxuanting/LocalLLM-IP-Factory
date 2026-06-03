@@ -59,6 +59,8 @@ def add_anchor_node(card_id: str, anchors: list[str]) -> None:
     nodes_store = get_nodes_store()
     nodes = nodes_store.read()
 
+    edges_store = get_edges_store()
+    edges = edges_store.read()
     for i, anchor in enumerate(anchors):
         anchor_id = f"{card_id}_a{i+1}"
         if any(n["id"] == anchor_id for n in nodes):
@@ -70,8 +72,13 @@ def add_anchor_node(card_id: str, anchors: list[str]) -> None:
             "card_id": card_id,
             "updated": datetime.now().isoformat(),
         })
+        # 卡片 → 锚点边
+        edge = {"from": card_id, "to": anchor_id, "type": "has_anchor", "weight": 1.0}
+        if edge not in edges:
+            edges.append(edge)
 
     nodes_store.write(nodes)
+    edges_store.write(edges)
 
 
 def add_semantic_edge(cid: str, card_text: str) -> Optional[str]:
