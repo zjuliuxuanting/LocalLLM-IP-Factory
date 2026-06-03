@@ -131,9 +131,10 @@ async function G(){
   let nodes=await L('data/knowledge_graph/nodes.json');
   let edges=await L('data/knowledge_graph/edges.json');
   if(!nodes||!edges||!nodes.length){document.getElementById('kg-info').textContent='暂无数据';return;}
-  // 最新3张卡 → 两跳子图
-  let allCards=nodes.filter(n=>n.type==='card').slice(-3);
-  let seed=new Set(allCards.map(n=>n.id));
+  // 连接最多的3张卡 → 两跳子图
+  let deg={};edges.forEach(e=>{deg[e.from]=(deg[e.from]||0)+1;deg[e.to]=(deg[e.to]||0)+1;});
+  let allCards=nodes.filter(n=>n.type==='card').sort((a,b)=>(deg[b.id]||0)-(deg[a.id]||0));
+  let seed=new Set(allCards.slice(0,3).map(n=>n.id));
   let l1=new Set();
   edges.forEach(e=>{if(seed.has(e.from))l1.add(e.to);if(seed.has(e.to))l1.add(e.from);});
   let l2=new Set();
