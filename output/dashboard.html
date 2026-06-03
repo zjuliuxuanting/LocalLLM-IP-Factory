@@ -131,15 +131,20 @@ async function G(){
   let nodes=await L('data/knowledge_graph/nodes.json');
   let edges=await L('data/knowledge_graph/edges.json');
   if(!nodes||!edges||!nodes.length){document.getElementById('kg-info').textContent='暂无数据';return;}
-  // 连接最多的3张卡 → 两跳子图
+  // 取度数最高的5张卡，两跳展开，再砍掉子网内度=1的叶子
   let deg={};edges.forEach(e=>{deg[e.from]=(deg[e.from]||0)+1;deg[e.to]=(deg[e.to]||0)+1;});
   let allCards=nodes.filter(n=>n.type==='card').sort((a,b)=>(deg[b.id]||0)-(deg[a.id]||0));
-  let seed=new Set(allCards.slice(0,3).map(n=>n.id));
+  let seeds=allCards.slice(0,5);
+  let seed=new Set(seeds.map(n=>n.id));
   let l1=new Set();
   edges.forEach(e=>{if(seed.has(e.from))l1.add(e.to);if(seed.has(e.to))l1.add(e.from);});
   let l2=new Set();
   edges.forEach(e=>{if(l1.has(e.from)&&!seed.has(e.to))l2.add(e.to);if(l1.has(e.to)&&!seed.has(e.from))l2.add(e.from);});
-  let keep=new Set([...seed,...l1,...l2]);
+  let subnet=new Set([...seed,...l1,...l2]);
+  // 砍叶子：子网内部度数<1的点不要
+  let subDeg={};
+  edges.forEach(e=>{if(subnet.has(e.from)&&subnet.has(e.to)){subDeg[e.from]=(subDeg[e.from]||0)+1;subDeg[e.to]=(subDeg[e.to]||0)+1;}});
+  let keep=new Set([...subnet].filter(id=>seed.has(id)||(subDeg[id]||0)>=1));
   let cards=nodes.filter(n=>keep.has(n.id)&&n.type==='card');
   let anchors=nodes.filter(n=>keep.has(n.id)&&n.type!=='card');
   let sc={B:'#4A90D9',R:'#E85D75',M:'#50B86C',S:'#9B59B6',Q:'#F39C12',F:'#E67E22',P:'#1ABC9C'};
