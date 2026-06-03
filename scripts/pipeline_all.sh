@@ -14,8 +14,11 @@ PIDFILE="/tmp/pipeline_all.pid"
 if [ -f "$PIDFILE" ]; then
     OLD_PID=$(cat "$PIDFILE")
     if kill -0 "$OLD_PID" 2>/dev/null; then
-        echo "❌ 已有 pipeline 实例在运行 (PID=$OLD_PID)，退出。"
-        exit 1
+        STATE=$(ps -p "$OLD_PID" -o state= 2>/dev/null)
+        if [ "$STATE" != "Z" ]; then
+            echo "❌ 已有 pipeline 实例在运行 (PID=$OLD_PID)，退出。"
+            exit 1
+        fi
     fi
 fi
 echo $$ > "$PIDFILE"
