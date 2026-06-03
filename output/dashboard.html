@@ -141,7 +141,6 @@ async function G(){
   let keep=new Set([...seed,...l1,...l2]);
   let cards=nodes.filter(n=>keep.has(n.id)&&n.type==='card');
   let anchors=nodes.filter(n=>keep.has(n.id)&&n.type!=='card');
-  let keep=new Set([...cardIds,...topAnchors]);
   let sc={B:'#4A90D9',R:'#E85D75',M:'#50B86C',S:'#9B59B6',Q:'#F39C12',F:'#E67E22',P:'#1ABC9C'};
   let ec={next:'#4A90D9',supports:'#50B86C',relates_to:'#F39C12',contrasts:'#E85D75',has_anchor:'#666'};
   let vnodes=cards.concat(anchors).map(n=>({id:n.id,label:(n.name||n.subsection||n.id).slice(0,20),color:{background:n.type==='card'?(sc[(n.id||'')[0]]||'#888'):seed.has(n.id)?'#ffa':'#555',border:'#fff'},font:{size:n.type==='card'?12:seed.has(n.id)?10:8,color:'#ddd'},shape:'dot',size:n.type==='card'?12:seed.has(n.id)?8:5}));
