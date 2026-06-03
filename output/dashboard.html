@@ -131,12 +131,15 @@ async function G(){
   let nodes=await L('data/knowledge_graph/nodes.json');
   let edges=await L('data/knowledge_graph/edges.json');
   if(!nodes||!edges||!nodes.length){document.getElementById('kg-info').textContent='暂无数据';return;}
-  // 取最近40张卡 + top 60锚点
-  let cards=nodes.filter(n=>n.type==='card').slice(-40);
+  // 每个系列取最近6张，总量均衡
+  let series=['B','R','M','S','Q','F','P'];
+  let cardsBySeries={};nodes.filter(n=>n.type==='card').forEach(n=>{let s=(n.id||'')[0];(cardsBySeries[s]=cardsBySeries[s]||[]).push(n);});
+  let cards=[];series.forEach(s=>{if(cardsBySeries[s])cards=cards.concat(cardsBySeries[s].slice(-6));});
   let cardIds=new Set(cards.map(n=>n.id));
+  // 取与选中卡直接相连的锚点，按度数排序
   let anchorDeg={};
   let linkedEdges=edges.filter(e=>{if(cardIds.has(e.from)||cardIds.has(e.to)){let a=cardIds.has(e.from)?e.to:e.from;if(!cardIds.has(a))anchorDeg[a]=(anchorDeg[a]||0)+1;return true;}return false;});
-  let topAnchors=Object.entries(anchorDeg).sort((a,b)=>b[1]-a[1]).slice(0,60).map(e=>e[0]);
+  let topAnchors=Object.entries(anchorDeg).sort((a,b)=>b[1]-a[1]).slice(0,80).map(e=>e[0]);
   let keep=new Set([...cardIds,...topAnchors]);
   let sc={B:'#4A90D9',R:'#E85D75',M:'#50B86C',S:'#9B59B6',Q:'#F39C12',F:'#E67E22',P:'#1ABC9C'};
   let ec={next:'#4A90D9',supports:'#50B86C',relates_to:'#F39C12',contrasts:'#E85D75'};
