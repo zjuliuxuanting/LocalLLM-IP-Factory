@@ -131,20 +131,21 @@ async function G(){
   let nodes=await L('data/knowledge_graph/nodes.json');
   let edges=await L('data/knowledge_graph/edges.json');
   if(!nodes||!edges||!nodes.length){document.getElementById('kg-info').textContent='暂无数据';return;}
-  // 每个系列取最近6张，总量均衡
-  let series=['B','R','M','S','Q','F','P'];
-  let cardsBySeries={};nodes.filter(n=>n.type==='card').forEach(n=>{let s=(n.id||'')[0];(cardsBySeries[s]=cardsBySeries[s]||[]).push(n);});
-  let cards=[];series.forEach(s=>{if(cardsBySeries[s])cards=cards.concat(cardsBySeries[s].slice(-6));});
-  let cardIds=new Set(cards.map(n=>n.id));
-  // 取与选中卡直接相连的锚点，按度数排序
-  let anchorDeg={};
-  let linkedEdges=edges.filter(e=>{if(cardIds.has(e.from)||cardIds.has(e.to)){let a=cardIds.has(e.from)?e.to:e.from;if(!cardIds.has(a))anchorDeg[a]=(anchorDeg[a]||0)+1;return true;}return false;});
-  let topAnchors=Object.entries(anchorDeg).sort((a,b)=>b[1]-a[1]).slice(0,80).map(e=>e[0]);
+  // 最新3张卡 → 两跳子图
+  let allCards=nodes.filter(n=>n.type==='card').slice(-3);
+  let seed=new Set(allCards.map(n=>n.id));
+  let l1=new Set();
+  edges.forEach(e=>{if(seed.has(e.from))l1.add(e.to);if(seed.has(e.to))l1.add(e.from);});
+  let l2=new Set();
+  edges.forEach(e=>{if(l1.has(e.from)&&!seed.has(e.to))l2.add(e.to);if(l1.has(e.to)&&!seed.has(e.from))l2.add(e.from);});
+  let keep=new Set([...seed,...l1,...l2]);
+  let cards=nodes.filter(n=>keep.has(n.id)&&n.type==='card');
+  let anchors=nodes.filter(n=>keep.has(n.id)&&n.type!=='card');
   let keep=new Set([...cardIds,...topAnchors]);
   let sc={B:'#4A90D9',R:'#E85D75',M:'#50B86C',S:'#9B59B6',Q:'#F39C12',F:'#E67E22',P:'#1ABC9C'};
   let ec={next:'#4A90D9',supports:'#50B86C',relates_to:'#F39C12',contrasts:'#E85D75',has_anchor:'#666'};
-  let vnodes=cards.concat(nodes.filter(n=>topAnchors.includes(n.id))).map(n=>({id:n.id,label:(n.name||n.subsection||n.id).slice(0,20),color:{background:n.type==='card'?(sc[(n.id||'')[0]]||'#888'):'#555',border:'#fff'},font:{size:n.type==='card'?12:9,color:'#ddd'},shape:'dot',size:n.type==='card'?12:6}));
-  let vedges=edges.filter(e=>keep.has(e.from)&&keep.has(e.to)).map(e=>({from:e.from,to:e.to,color:{color:(ec[e.type||e.relation]||'#444'),opacity:0.4},width:(e.type||e.relation)==='?'?0.5:1.5}));
+  let vnodes=cards.concat(anchors).map(n=>({id:n.id,label:(n.name||n.subsection||n.id).slice(0,20),color:{background:n.type==='card'?(sc[(n.id||'')[0]]||'#888'):seed.has(n.id)?'#ffa':'#555',border:'#fff'},font:{size:n.type==='card'?12:seed.has(n.id)?10:8,color:'#ddd'},shape:'dot',size:n.type==='card'?12:seed.has(n.id)?8:5}));
+  let vedges=edges.filter(e=>keep.has(e.from)&&keep.has(e.to)).map(e=>({from:e.from,to:e.to,color:{color:(ec[e.type||e.relation]||'#444'),opacity:0.5},width:(seed.has(e.from)||seed.has(e.to))?1.5:0.8}));
   document.getElementById('kg-info').textContent=nodes.length+'节点 · '+edges.length+'边 → 显示'+vnodes.length+'核心';
   let data={nodes:new vis.DataSet(vnodes),edges:new vis.DataSet(vedges)};
   let opts={physics:{solver:'forceAtlas2Based',forceAtlas2Based:{gravitationalConstant:-30,centralGravity:0.005,springLength:80,springConstant:0.08},stabilization:{iterations:100}},interaction:{dragNodes:true,zoomView:true,navigationButtons:false},edges:{smooth:{type:'continuous'}}};
