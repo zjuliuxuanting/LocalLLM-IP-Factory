@@ -80,7 +80,7 @@ h1{font-size:18px}h1 span{color:#666;font-size:12px;font-weight:normal}
 <div class="grid">
   <div class="card" style="grid-column:1/-1">
     <h2>🧠 知识图谱 <span id="kg-info" style="font-size:10px;color:#666"></span></h2>
-    <div id="kg-container" style="width:100%;height:420px;background:#0a0a14;border-radius:6px;overflow:hidden;cursor:grab"></div>
+    <canvas id="kg-canvas" style="width:100%;height:420px;background:#0a0a14;border-radius:6px;display:block"></canvas>
     <div class="kg-legend">
       <span>🟢 卡: <span class="dot" style="background:#4A90D9"></span>B <span class="dot" style="background:#E85D75"></span>R <span class="dot" style="background:#50B86C"></span>M <span class="dot" style="background:#9B59B6"></span>S <span class="dot" style="background:#F39C12"></span>Q <span class="dot" style="background:#E67E22"></span>F <span class="dot" style="background:#1ABC9C"></span>P</span>
       <span>⚫ 锚点</span>
@@ -89,7 +89,6 @@ h1{font-size:18px}h1 span{color:#666;font-size:12px;font-weight:normal}
   </div>
 </div>
 <div class="status" id="status">⏳</div>
-<script src="https://d3js.org/d3.v7.min.js"></script>
 <script>
 const C={B:'#4A90D9',R:'#E85D75',M:'#50B86C',S:'#9B59B6',Q:'#F39C12',F:'#E67E22',P:'#1ABC9C',D:'#3498DB',T:'#E74C3C',U:'#2ECC71',V:'#95A5A6',W:'#D35400'};
 async function L(p){try{let r=await fetch('../'+p,{cache:'no-store'});return r.ok?r.json():null}catch(e){return null}}
@@ -125,40 +124,36 @@ async function R(){
   document.getElementById('ts').textContent=new Date().toLocaleString('zh-CN');document.getElementById('status').textContent='🔄 3s';
 }R();setInterval(R,3000);
 
-// ── 知识图谱（D3 force layout，最多60节点）──
-let kgFirst=true,kgTimer=null;
+// ── 知识图谱（Canvas 手绘，保证可见）──
+let kgTimer=null;
 async function G(){
   let nodes=await L('data/knowledge_graph/nodes.json');
   let edges=await L('data/knowledge_graph/edges.json');
-  if(!nodes||!edges||!nodes.length){document.getElementById('kg-info').textContent='暂无数据';return;}
-  let w=document.getElementById('kg-container').clientWidth,h=420;
-  // 取最近20张卡 + 它们直接连的锚点（最多40个）
-  let cards=nodes.filter(n=>n.type==='card').slice(-20);
+  let cvs=document.getElementById('kg-canvas');
+  if(!nodes||!edges||!nodes.length||!cvs){document.getElementById('kg-info').textContent='暂无数据';return;}
+  let w=cvs.width=cvs.parentElement.clientWidth;cvs.height=420;
+  let ctx=cvs.getContext('2d');ctx.clearRect(0,0,w,cvs.height);
+  // 取最近30张卡 + 它们的锚点
+  let cards=nodes.filter(n=>n.type==='card').slice(-30);
   let cardIds=new Set(cards.map(n=>n.id));
-  let anchorDeg={};
-  let linkedEdges=edges.filter(e=>{let ok=cardIds.has(e.from)||cardIds.has(e.to);if(ok){let a=cardIds.has(e.from)?e.to:e.from;anchorDeg[a]=(anchorDeg[a]||0)+1;}return ok;});
-  let topAnchors=Object.entries(anchorDeg).sort((a,b)=>b[1]-a[1]).slice(0,40).map(e=>e[0]);
-  let keep=new Set([...cardIds,...topAnchors]);
-  let nds=cards.concat(nodes.filter(n=>topAnchors.includes(n.id))).map(n=>({id:n.id,label:n.name||n.subsection||n.id,type:n.type||'card',series:(n.id||'')[0]}));
-  let nmap={};nodes.forEach(n=>nmap[n.id]=n);
-  let lks=edges.filter(e=>keep.has(e.from)&&keep.has(e.to)).map(e=>({source:e.from,target:e.to,etype:e.type||e.relation||'?'}));
-  document.getElementById('kg-info').textContent=nodes.length+'节点 · '+edges.length+'边 → 显示'+nds.length+'核心';
-  // 渲染
-  let svg=d3.select('#kg-container').selectAll('svg').data([0]);
-  svg=svg.join('svg').attr('width',w).attr('height',h).style('background','#0a0a14');
-  let g=svg.selectAll('g').data([0]).join('g');
-  let seriesColor=d3.scaleOrdinal().domain(['B','R','M','S','Q','F','P']).range(['#4A90D9','#E85D75','#50B86C','#9B59B6','#F39C12','#E67E22','#1ABC9C']);
-  let edgeColor={'next':'#4A90D9','supports':'#50B86C','relates_to':'#F39C12','contrasts':'#E85D75'};
-  let sim=d3.forceSimulation(nds).force('link',d3.forceLink(lks).distance(50).strength(0.1)).force('charge',d3.forceManyBody().strength(-60)).force('center',d3.forceCenter(w/2,h/2)).force('collide',d3.forceCollide(15));
-  let link=g.selectAll('line').data(lks).join('line').attr('stroke',d=>edgeColor[d.etype]||'#444').attr('stroke-width',d=>d.etype==='?'?0.4:1).attr('stroke-opacity',0.4);
-  let node=g.selectAll('g.node').data(nds).join('g').style('cursor','pointer').call(d3.drag().on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;}).on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
-  node.append('circle').attr('r',d=>d.type==='card'?6:3).attr('fill',d=>d.type==='card'?seriesColor(d.series):'#555').attr('stroke','#fff').attr('stroke-width',0.5);
-  node.append('text').text(d=>d.label).attr('font-size',d=>d.type==='card'?8:6).attr('fill',d=>d.type==='card'?'#ddd':'#777').attr('dx',8).attr('dy',3);
-  node.append('title').text(d=>d.id+': '+d.label);
-  sim.on('tick',()=>{link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);node.attr('transform',d=>'translate('+d.x+','+d.y+')');});
-  let zoom=d3.zoom().scaleExtent([0.3,5]).on('zoom',e=>g.attr('transform',e.transform));
-  svg.call(zoom);
-  if(kgFirst){let t=d3.zoomIdentity.translate(w/2,h/2).scale(0.55).translate(-w/2,-h/2);svg.call(zoom.transform,t);kgFirst=false;}
+  let anchorSet=new Set();
+  let lks=[];
+  edges.forEach(e=>{if(cardIds.has(e.from)||cardIds.has(e.to)){let a=cardIds.has(e.from)?e.to:e.from;if(!cardIds.has(a))anchorSet.add(a);lks.push({from:e.from,to:e.to,etype:e.type||e.relation||'?'});}});
+  let topAnchors=[...anchorSet].slice(0,40);
+  let allIds=[...cards.map(n=>n.id),...topAnchors];
+  let nds={};allIds.forEach(id=>{let n=nodes.find(x=>x.id===id)||{};nds[id]={id,label:n.name||n.subsection||id,type:n.type||'card',series:id[0]};});
+  document.getElementById('kg-info').textContent=nodes.length+'节点 · '+edges.length+'边 → 显示'+Object.keys(nds).length+'核心';
+  // 计算布局：卡片网格 + 锚点围绕
+  let px={},py={};
+  let cols=Math.ceil(Math.sqrt(cards.length));
+  cards.forEach((c,i)=>{px[c.id]=50+(w-100)*(i%cols)/(cols-1||1);py[c.id]=60+300*Math.floor(i/cols)/Math.max(1,Math.ceil(cards.length/cols)-1);});
+  topAnchors.forEach((id,i)=>{let linked=lks.filter(e=>e.from===id||e.to===id);let cx=0,cy=0,n=0;linked.forEach(e=>{let oid=e.from===id?e.to:e.from;if(px[oid]!==undefined){cx+=px[oid];cy+=py[oid];n++;}});let angle=(i/topAnchors.length)*Math.PI*2;let dist=80+(i%3)*40;px[id]=n>0?cx/n+(Math.cos(angle)*dist):w/2+Math.cos(angle)*dist;py[id]=n>0?cy/n+(Math.sin(angle)*dist):210+Math.sin(angle)*dist;px[id]=Math.max(20,Math.min(w-20,px[id]));py[id]=Math.max(20,Math.min(400,py[id]));});
+  // 绘制边
+  let ecolors={next:'#4A90D9',supports:'#50B86C',relates_to:'#F39C12',contrasts:'#E85D75'};
+  lks.forEach(e=>{if(px[e.from]!==undefined&&px[e.to]!==undefined){ctx.beginPath();ctx.moveTo(px[e.from],py[e.from]);ctx.lineTo(px[e.to],py[e.to]);ctx.strokeStyle=ecolors[e.etype]||'#444';ctx.lineWidth=e.etype==='?'?0.5:1;ctx.globalAlpha=0.3;ctx.stroke();ctx.globalAlpha=1;}});
+  // 绘制节点+文字
+  let sc={B:'#4A90D9',R:'#E85D75',M:'#50B86C',S:'#9B59B6',Q:'#F39C12',F:'#E67E22',P:'#1ABC9C'};
+  Object.entries(nds).forEach(([id,n])=>{let x=px[id],y=py[id];if(x===undefined)return;let r=n.type==='card'?7:4;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=n.type==='card'?sc[n.series]||'#888':'#555';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=0.5;ctx.stroke();ctx.fillStyle='#ddd';ctx.font=(n.type==='card'?'bold ':'')+(n.type==='card'?9:7)+'px sans-serif';ctx.fillText(n.label.slice(0,12),x+r+2,y+3);});
 }
 G();kgTimer=setInterval(G,15000);
 </script>
