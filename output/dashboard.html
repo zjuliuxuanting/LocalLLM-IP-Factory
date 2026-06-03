@@ -125,51 +125,42 @@ async function R(){
   document.getElementById('ts').textContent=new Date().toLocaleString('zh-CN');document.getElementById('status').textContent='🔄 3s';
 }R();setInterval(R,3000);
 
-// ── 知识图谱（D3 force layout）──
-let kgFirst=true;
+// ── 知识图谱（D3 force layout，最多60节点）──
+let kgFirst=true,kgTimer=null;
 async function G(){
   let nodes=await L('data/knowledge_graph/nodes.json');
   let edges=await L('data/knowledge_graph/edges.json');
   if(!nodes||!edges||!nodes.length){document.getElementById('kg-info').textContent='暂无数据';return;}
-  // 取最近 50 张卡 + 连接最多的 100 个锚点
-  let deg={};edges.forEach(e=>{deg[e.from]=(deg[e.from]||0)+1;deg[e.to]=(deg[e.to]||0)+1});
-  let cards=nodes.filter(n=>n.type==='card').slice(-50);
+  let w=document.getElementById('kg-container').clientWidth,h=420;
+  // 取最近20张卡 + 它们直接连的锚点（最多40个）
+  let cards=nodes.filter(n=>n.type==='card').slice(-20);
   let cardIds=new Set(cards.map(n=>n.id));
-  let linkedAnchors=nodes.filter(n=>n.type!=='card'&&edges.some(e=>(e.from===n.id||e.to===n.id)&&(cardIds.has(e.from)||cardIds.has(e.to))));
-  let anchors=linkedAnchors.sort((a,b)=>(deg[b.id]||0)-(deg[a.id]||0)).slice(0,100);
-  let topN=cards.concat(anchors);
-  let keep=new Set(topN.map(n=>n.id));
-  document.getElementById('kg-info').textContent=nodes.length+'节点 · '+edges.length+'边 → 显示'+keep.size+'核心';
-  let w=document.getElementById('kg-container').clientWidth,h=450;
+  let anchorDeg={};
+  let linkedEdges=edges.filter(e=>{let ok=cardIds.has(e.from)||cardIds.has(e.to);if(ok){let a=cardIds.has(e.from)?e.to:e.from;anchorDeg[a]=(anchorDeg[a]||0)+1;}return ok;});
+  let topAnchors=Object.entries(anchorDeg).sort((a,b)=>b[1]-a[1]).slice(0,40).map(e=>e[0]);
+  let keep=new Set([...cardIds,...topAnchors]);
+  let nds=cards.concat(nodes.filter(n=>topAnchors.includes(n.id))).map(n=>({id:n.id,label:n.name||n.subsection||n.id,type:n.type||'card',series:(n.id||'')[0]}));
+  let nmap={};nodes.forEach(n=>nmap[n.id]=n);
+  let lks=edges.filter(e=>keep.has(e.from)&&keep.has(e.to)).map(e=>({source:e.from,target:e.to,etype:e.type||e.relation||'?'}));
+  document.getElementById('kg-info').textContent=nodes.length+'节点 · '+edges.length+'边 → 显示'+nds.length+'核心';
+  // 渲染
   let svg=d3.select('#kg-container').selectAll('svg').data([0]);
   svg=svg.join('svg').attr('width',w).attr('height',h).style('background','#0a0a14');
   let g=svg.selectAll('g').data([0]).join('g');
   let seriesColor=d3.scaleOrdinal().domain(['B','R','M','S','Q','F','P']).range(['#4A90D9','#E85D75','#50B86C','#9B59B6','#F39C12','#E67E22','#1ABC9C']);
-  let nmap={};nodes.forEach(n=>nmap[n.id]=n);
-  let nds=topN.map(n=>({id:n.id,label:n.name||n.subsection||n.id,type:n.type||'card',series:(n.id||'')[0],r:n.type==='card'?5:3}));
-  let lks=edges.filter(e=>keep.has(e.from)&&keep.has(e.to)).map(e=>({source:e.from,target:e.to,type:e.type||e.relation||'cites'}));
-  let edgeColor=d3.scaleOrdinal().domain(['next','supports','relates_to','contrasts','cites']).range(['#4A90D9','#50B86C','#F39C12','#E85D75','#555']);
-  let sim=d3.forceSimulation(nds)
-    .force('link',d3.forceLink(lks).distance(40).strength(0.15))
-    .force('charge',d3.forceManyBody().strength(-80))
-    .force('center',d3.forceCenter(w/2,h/2))
-    .force('collide',d3.forceCollide(8));
-  let link=g.selectAll('line').data(lks).join('line')
-    .attr('stroke',d=>edgeColor(d.type||'cites')).attr('stroke-width',d=>d.type==='cites'?0.5:1.2).attr('stroke-opacity',0.5);
-  let lbl=g.selectAll('text').data(nds.filter(n=>n.type==='card')).join('text')
-    .text(d=>d.id).attr('font-size',7).attr('fill','#aaa').attr('text-anchor','middle').attr('dy',-d=>d.r+2);
-  let node=g.selectAll('circle').data(nds).join('circle')
-    .attr('r',d=>d.r).attr('fill',d=>d.type==='card'?seriesColor(d.series):'#555')
-    .attr('stroke',d=>d.type==='card'?'#fff':'#444').attr('stroke-width',0.5)
-    .style('cursor','pointer')
-    .call(d3.drag().on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;}).on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
-  node.append('title').text(d=>(d.type==='card'?d.id: '(锚点) ')+d.label);
-  sim.on('tick',()=>{link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);node.attr('cx',d=>d.x).attr('cy',d=>d.y);lbl.attr('x',d=>d.x).attr('y',d=>d.y);});
+  let edgeColor={'next':'#4A90D9','supports':'#50B86C','relates_to':'#F39C12','contrasts':'#E85D75'};
+  let sim=d3.forceSimulation(nds).force('link',d3.forceLink(lks).distance(50).strength(0.1)).force('charge',d3.forceManyBody().strength(-60)).force('center',d3.forceCenter(w/2,h/2)).force('collide',d3.forceCollide(15));
+  let link=g.selectAll('line').data(lks).join('line').attr('stroke',d=>edgeColor[d.etype]||'#444').attr('stroke-width',d=>d.etype==='?'?0.4:1).attr('stroke-opacity',0.4);
+  let node=g.selectAll('g.node').data(nds).join('g').style('cursor','pointer').call(d3.drag().on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;}).on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+  node.append('circle').attr('r',d=>d.type==='card'?6:3).attr('fill',d=>d.type==='card'?seriesColor(d.series):'#555').attr('stroke','#fff').attr('stroke-width',0.5);
+  node.append('text').text(d=>d.label).attr('font-size',d=>d.type==='card'?8:6).attr('fill',d=>d.type==='card'?'#ddd':'#777').attr('dx',8).attr('dy',3);
+  node.append('title').text(d=>d.id+': '+d.label);
+  sim.on('tick',()=>{link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);node.attr('transform',d=>'translate('+d.x+','+d.y+')');});
   let zoom=d3.zoom().scaleExtent([0.3,5]).on('zoom',e=>g.attr('transform',e.transform));
   svg.call(zoom);
   if(kgFirst){let t=d3.zoomIdentity.translate(w/2,h/2).scale(0.55).translate(-w/2,-h/2);svg.call(zoom.transform,t);kgFirst=false;}
 }
-G();setInterval(G,15000);
+G();kgTimer=setInterval(G,15000);
 </script>
 </body>
 </html>
